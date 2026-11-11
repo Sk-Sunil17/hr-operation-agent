@@ -192,11 +192,30 @@ export default function App() {
             {unreachable ? (
               <>
                 <h1>The agent is not answering</h1>
-                <p>
-                  Start it with <code>python3 -m hr_agent.cli serve</code>. It listens on{' '}
-                  <code>127.0.0.1:4000</code> and this dashboard proxies <code>/api</code> to it.
-                </p>
-                <p>If you have not loaded the companies yet, run <code>python3 -m hr_agent.cli init</code> first.</p>
+                {import.meta.env.VITE_API_BASE_URL ? (
+                  <>
+                    <p>
+                      The dashboard is reachable but the agent behind it is not. If it is hosted on
+                      a free tier it sleeps when idle and takes about 30 seconds to wake — wait, then
+                      reload.
+                    </p>
+                    <p>
+                      If reloading does not help, the API is down or its{' '}
+                      <code>HR_CORS_ORIGINS</code> does not include this address.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p>
+                      Start it with <code>python3 -m hr_agent.cli serve</code>. It listens on{' '}
+                      <code>127.0.0.1:4000</code> and this dashboard proxies <code>/api</code> to it.
+                    </p>
+                    <p>
+                      If you have not loaded the companies yet, run{' '}
+                      <code>python3 -m hr_agent.cli init</code> first.
+                    </p>
+                  </>
+                )}
               </>
             ) : (
               <p>Loading…</p>

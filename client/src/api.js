@@ -2,8 +2,14 @@
 // or throws an Error whose message is safe to show to the user.
 const BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 
-const UNREACHABLE =
-  'Cannot reach the agent. Start it with `python3 -m hr_agent.cli serve` (it listens on 127.0.0.1:4000).';
+// A hosted dashboard talks to an API somewhere else; a local one proxies to
+// 127.0.0.1. Telling a stranger on a public URL to run a CLI command is useless
+// advice, and on a free hosting tier the real cause is usually a cold start.
+const HOSTED = Boolean(BASE);
+
+const UNREACHABLE = HOSTED
+  ? `Cannot reach the agent at ${BASE}. If it is hosted on a free tier it may be waking up — wait about 30 seconds and reload.`
+  : 'Cannot reach the agent. Start it with `python3 -m hr_agent.cli serve` (it listens on 127.0.0.1:4000).';
 
 async function request(path, options = {}) {
   let res;
