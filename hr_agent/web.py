@@ -39,7 +39,7 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
     # The dashboard is served by Vite in development, on another port.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+        allow_origins=config.CORS_ORIGINS,
         allow_credentials=False,
         allow_methods=["GET", "POST"],
         allow_headers=["*"],
@@ -101,8 +101,16 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
             "auth": {"enabled": auth.enabled()},
             "demo": {
                 "role_switching": DEMO_ROLE_SWITCHING,
-                "note": "Anyone can act as anyone from the directory. That is a demo "
-                        "convenience and the server refuses a public bind while it is on.",
+                # A hosted demo has to say so on the screen. Someone who finds
+                # the link should not have to guess whether this is real.
+                "public": config.PUBLIC_DEMO,
+                "note": (
+                    "This is a PUBLIC demo of fictional companies. Anyone can act as "
+                    "anyone from the directory, and nothing here is real data."
+                    if config.PUBLIC_DEMO
+                    else "Anyone can act as anyone from the directory. That is a demo "
+                         "convenience and the server refuses a public bind while it is on."
+                ),
             },
             "tenants": loader.tenant_ids(),
         }
@@ -730,10 +738,21 @@ def serve(host: str = "127.0.0.1", port: int = 4000, db_path: str | None = None,
     """
     import uvicorn
 
-    if DEMO_ROLE_SWITCHING and host not in {"127.0.0.1", "localhost", "::1"}:
+    if DEMO_ROLE_SWITCHING and host not in {"127.0.0.1", "localhost", "::1"} and not config.PUBLIC_DEMO:
         raise SystemExit(
             f"refusing to bind {host}: anyone could act as anyone while role switching is on.\n"
-            "Bind 127.0.0.1, or turn role switching off first."
+            "Bind 127.0.0.1, or turn role switching off first.\n"
+            "\n"
+            "If this really is a public demo of fictional companies, acknowledge it "
+            "explicitly:\n"
+            f'  HR_PUBLIC_DEMO="{config.PUBLIC_DEMO_ACK}"\n'
+            "A truthy value is not enough, on purpose: nobody should be able to switch "
+            "this off by accident or by copying a deployment template."
+        )
+    if config.PUBLIC_DEMO and DEMO_ROLE_SWITCHING:
+        print(
+            "WARNING: serving a PUBLIC demo with the role switcher on. Anyone who "
+            "reaches this URL can act as anyone in the directory. Fictional data only."
         )
     if reload and db_path is None:
         # Reload needs an import string rather than a built app.

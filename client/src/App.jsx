@@ -142,6 +142,16 @@ export default function App() {
         </nav>
       </header>
 
+      {health?.demo?.public && (
+        <div className="banner" role="status">
+          <span>
+            <strong>Public demo.</strong> Three fictional companies, invented people, invented
+            policies. Anyone with this link can act as anyone in the directory and approve things —
+            that is the point of the demo, and it is why no real data is here. State resets when the
+            server restarts.
+          </span>
+        </div>
+      )}
       {error && (
         <div className="banner" role="alert">
           <span>{error}</span>

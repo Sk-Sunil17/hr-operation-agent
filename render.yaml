@@ -1,0 +1,42 @@
+# Render blueprint for the agent's API.
+#
+# One web service, one small disk. The disk is what makes the demo work: an
+# approval has to still be there on the next request, and the audit chain has to
+# keep its history, so the database cannot live in a filesystem that resets.
+#
+# Deploy: push this repo, then in Render choose "New > Blueprint" and point it
+# at the repo. Everything below is picked up automatically except the dashboard
+# origin, which you fill in once Vercel has given you a URL.
+
+services:
+  - type: web
+    name: hr-agent-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/health
+
+    disk:
+      name: hr-agent-data
+      mountPath: /data
+      sizeGB: 1
+
+    envVars:
+      - key: HR_VAR_DIR
+        value: /data
+
+      # The role switcher is the demo: you act as an employee, then as the HR
+      # partner who approves their request. The server refuses to serve that
+      # publicly unless this exact sentence acknowledges what it means.
+      #
+      # Only set this for a demo of the FICTIONAL companies in packs/. For
+      # anything with real employees in it, leave this out and turn on
+      # authentication instead (HR_AUTH=on plus HR_AUTH_SECRET).
+      - key: HR_PUBLIC_DEMO
+        value: anyone-can-act-as-anyone
+
+      # Browser origins allowed to call this API. Replace with the URL Vercel
+      # gives the dashboard, then redeploy. Keeping localhost means you can
+      # still run the dashboard locally against this hosted API.
+      - key: HR_CORS_ORIGINS
+        value: http://localhost:5173,https://hr-operation-agent.vercel.app

@@ -60,6 +60,20 @@ npm install        # first time only
 npm run dev        # open http://localhost:5173
 ```
 
+### Deploying it
+
+`DEPLOY.md` has the full walkthrough. The short version: the API needs an
+always-on container with a disk (Render, Railway, Fly — there is a `Dockerfile`
+and a `render.yaml`), and the dashboard is static files that go on Vercel
+(`vercel.json`). It is deliberately not serverless: the demo is stateful, and a
+platform that discards the filesystem between requests breaks the approval
+sequence the product exists to show.
+
+One thing to read before hosting it: the dashboard's role switcher lets anyone
+act as anyone, so the server refuses a public bind until you acknowledge that
+explicitly with `HR_PUBLIC_DEMO=anyone-can-act-as-anyone`. A truthy value is not
+enough, on purpose.
+
 ### What to try, in order
 
 | Screen | Try this | What it shows |

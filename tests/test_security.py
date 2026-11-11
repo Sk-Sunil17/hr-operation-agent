@@ -352,3 +352,84 @@ def test_citation_coverage_counts_answers_not_handovers():
     assert report.citation_coverage == 1.0, report.caveats
     assert not any("did not carry one" in c for c in report.caveats)
     assert report.caveats, "the caveat list is never empty"
+
+
+# ---------------------------------------------------------------- public demo
+#
+# A container has nothing but 0.0.0.0 to bind, so the localhost-only guard had
+# to gain a way through. The way through is deliberately awkward: an exact
+# sentence, not a truthy value, because a deployment platform's default
+# environment or a copied template must never be able to switch it off.
+
+
+def _reloaded(monkeypatch, value):
+    """Reload config and web so the module-level env reads are re-evaluated."""
+    import importlib
+
+    if value is None:
+        monkeypatch.delenv("HR_PUBLIC_DEMO", raising=False)
+    else:
+        monkeypatch.setenv("HR_PUBLIC_DEMO", value)
+    from hr_agent import config as config_mod
+
+    importlib.reload(config_mod)
+    from hr_agent import web as web_mod
+
+    importlib.reload(web_mod)
+    return config_mod, web_mod
+
+
+def test_a_public_bind_is_still_refused_by_default(monkeypatch):
+    config_mod, web_mod = _reloaded(monkeypatch, None)
+    with pytest.raises(SystemExit) as refused:
+        web_mod.serve(host="0.0.0.0")
+    message = str(refused.value)
+    assert "anyone could act as anyone" in message
+    # It must also say how, or somebody will reach for a worse workaround.
+    assert "HR_PUBLIC_DEMO" in message
+    assert config_mod.PUBLIC_DEMO_ACK in message
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["1", "true", "yes", "on", "anyone_can_act_as_anyone", "ANYONE-CAN-ACT-AS-ANYONE", " "],
+)
+def test_a_truthy_value_is_not_enough_to_open_a_public_bind(monkeypatch, value):
+    """The acknowledgement is a sentence, not a flag.
+
+    Platforms set `1` and `true` for all sorts of reasons. Accepting them would
+    mean an unauthenticated role switcher could go public by accident, which is
+    the one thing this guard exists to prevent.
+    """
+    config_mod, web_mod = _reloaded(monkeypatch, value)
+    assert config_mod.PUBLIC_DEMO is False
+    with pytest.raises(SystemExit):
+        web_mod.serve(host="0.0.0.0")
+
+
+def test_the_exact_acknowledgement_opens_it_and_health_says_so(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    config_mod, web_mod = _reloaded(monkeypatch, "anyone-can-act-as-anyone")
+    assert config_mod.PUBLIC_DEMO is True
+
+    health = TestClient(web_mod.create_app(db_path=":memory:")).get("/api/health").json()
+    # Anyone who finds the link has to be told what they are looking at.
+    assert health["demo"]["public"] is True
+    assert "PUBLIC demo" in health["demo"]["note"]
+    assert "nothing here is real data" in health["demo"]["note"]
+
+
+def test_localhost_is_unaffected_by_any_of_this(monkeypatch):
+    """The ordinary local demo must not need the acknowledgement."""
+    import importlib
+
+    config_mod, web_mod = _reloaded(monkeypatch, None)
+    import uvicorn
+
+    started = {}
+    monkeypatch.setattr(uvicorn, "run", lambda *a, **k: started.update(k or {"ran": True}))
+    web_mod.serve(host="127.0.0.1")
+    assert started, "a localhost bind should still start"
+    importlib.reload(config_mod)
+    importlib.reload(web_mod)
