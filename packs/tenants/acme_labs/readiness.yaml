@@ -1,0 +1,29 @@
+# What must be true before a new starter's first day, at this company.
+#
+# Each item names something a configured system can answer: a field the HRIS
+# holds, or a document that has been filed. Nothing here is a judgement, which
+# is why the readiness check can report facts instead of guesses.
+
+items:
+  - id: contract
+    label: "Signed contract returned"
+    document: contract
+    blocking: true
+
+  - id: right_to_work
+    label: "Right to work documents verified"
+    document: right_to_work
+    blocking: true          # section 2 of the onboarding policy: no start date without it
+
+  - id: bank_details
+    label: "Bank details for payroll"
+    field: bank_details
+    blocking: true
+
+  - id: emergency_contact
+    label: "Emergency contact"
+    field: emergency_contact
+
+  - id: personal_email
+    label: "Personal email address confirmed"
+    field: personal_email

@@ -1,0 +1,49 @@
+# Meridian receives different forms, with its own labels and versions.
+forms:
+  - id: joiner_pack
+    label: "New joiner pack"
+    version: "4.2"
+    detect: ["new joiner pack", "joiner pack", "appointment acceptance"]
+    fields:
+      - { id: full_name,         label: "Full name",         aliases: ["name", "employee name"] }
+      - { id: entity,            label: "Entity",            aliases: ["legal entity", "company"] }
+      - { id: start_date,        label: "Commencement date", aliases: ["start date"] }
+      - { id: phone,             label: "Contact number",    aliases: ["phone", "mobile"] }
+      - { id: emergency_contact, label: "Emergency contact", aliases: ["next of kin"] }
+      - { id: bank_details,      label: "Bank details",      aliases: ["payroll account"] }
+
+  - id: appointment_letter
+    label: "Signed letter of appointment"
+    version: "4.0"
+    detect: ["letter of appointment", "signed appointment letter"]
+    fields:
+      - { id: full_name, label: "Full name", aliases: ["name"] }
+      - { id: entity,    label: "Entity",    aliases: ["legal entity"] }
+      - { id: signed_on, label: "Signed on", aliases: ["date signed"] }
+
+  - id: right_to_work
+    label: "Right to work verification"
+    version: "3.0"
+    detect: ["right to work verification", "right to work"]
+    expires_after_months: 12
+    fields:
+      - { id: full_name,     label: "Full name",     aliases: ["name"] }
+      - { id: document_seen, label: "Document sighted", aliases: ["document seen", "evidence"] }
+      - { id: checked_by,    label: "Verified by",   aliases: ["checked by"] }
+      - { id: check_date,    label: "Verification date", aliases: ["date"] }
+
+  - id: medical_certificate
+    label: "Medical certificate"
+    version: "any"
+    detect: ["medical certificate", "fit note", "medical report"]
+    restricted: true
+
+  - id: leaver_form
+    label: "Leaver form"
+    version: "2.1"
+    detect: ["leaver form", "separation form"]
+    fields:
+      - { id: full_name,  label: "Full name",  aliases: ["name"] }
+      - { id: last_day,   label: "Last working day", aliases: ["last day"] }
+      - { id: entity,     label: "Entity",     aliases: ["legal entity"] }
+      - { id: equipment,  label: "Equipment returned", aliases: ["assets returned"] }

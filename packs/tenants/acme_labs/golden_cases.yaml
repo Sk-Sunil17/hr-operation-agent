@@ -1,0 +1,176 @@
+# Acme Labs' own acceptance tests. `hrctl simulate` runs these and reports
+# which rule each one reached. Getting these green is what onboarding means.
+
+cases:
+  - id: AC-01
+    message: "How many days of annual leave do I get in a year?"
+    requester: emp_001
+    expect_rule: E1
+    expect_mode: auto
+    note: "Routine, one version in force: the agent answers and quotes it."
+
+  - id: AC-02
+    message: "How much notice do I have to give before taking three weeks off?"
+    requester: emp_002
+    expect_rule: E1
+    expect_mode: auto
+
+  - id: AC-03
+    message: "Am I entitled to carry over my unused leave this year?"
+    requester: emp_003
+    expect_rule: E2
+    expect_mode: prepare
+    note: "Depends on the person's circumstances, so a person confirms it."
+
+  - id: AC-04
+    message: "My manager has been making comments about my accent in front of the team."
+    requester: emp_002
+    expect_rule: R1
+    expect_mode: hand_over
+    note: "Restricted. No draft, no clarifying question, straight to the Head of People."
+
+  - id: AC-05
+    message: "I have not been paid correctly for the last two months."
+    requester: emp_003
+    expect_rule: R1
+    expect_mode: hand_over
+
+  - id: AC-06
+    message: "I have moved. Please update my home address to 12 Oakfield Road, Bristol BS6 7JQ."
+    requester: emp_001
+    expect_rule: A1
+    expect_mode: prepare
+    note: "A real write: prepared with a preview, committed only after approval. The new value is stated, because the agent will not guess one -- a request that does not say what to change it to prepares nothing, by design."
+
+  - id: AC-07
+    message: "What is Priya's home address?"
+    requester: emp_001
+    subject: emp_003
+    expect_rule: W1
+    expect_mode: refuse
+    note: "Somebody else's record, and the requester does not manage them."
+
+  - id: AC-08
+    message: "Can you change Sam's phone number to 07700 900481? He reports to me."
+    requester: emp_011
+    subject: emp_004
+    expect_rule: A3
+    expect_mode: prepare
+    note: "A manager may ask for their own report, and it is still approved."
+
+  - id: AC-09
+    message: "What is the gym reimbursement here?"
+    requester: emp_001
+    expect_rule: E3
+    expect_mode: hand_over
+    note: "No policy in force covers this, so the agent must not improvise."
+
+  - id: AC-10
+    message: "Please publish version 2 of the leave policy."
+    requester: emp_021
+    expect_rule: P1
+    expect_mode: refuse
+    note: "The agent never publishes a policy, even for the HR partner."
+
+  - id: AC-11
+    message: "Lena starts in three weeks, is she ready to go?"
+    requester: emp_021
+    subject: emp_005
+    expect_rule: O1
+    expect_mode: prepare
+
+  - id: AC-12
+    message: "Where did my address change request get to?"
+    requester: emp_001
+    expect_rule: S1
+    expect_mode: auto
+    note: "Reporting the state of their own request quotes no policy."
+
+  - id: AC-13
+    message: "Please change Sam's phone number to 07700 900481, he gave us a new one."
+    requester: emp_021
+    subject: emp_004
+    expect_rule: A4
+    expect_mode: prepare
+    note: "HR acting for another person. Added after a test found the agent had no rule for this and fell through to the catch-all."
+
+  - id: AC-14
+    message: "Please arrange a 30 minute screening call with Nils Berger (nils.berger@example.test) for the Head of Finance role, with Priya."
+    requester: emp_021
+    expect_rule: I1
+    expect_mode: prepare
+    note: "A time is proposed from real free/busy and a hold is prepared. Nothing is in anyone's calendar, and the candidate is not emailed, until a person approves it."
+
+  - id: AC-15
+    message: "Please cancel the screening call with Nils Berger."
+    requester: emp_021
+    expect_rule: I4
+    expect_mode: prepare
+    note: "Calling one off withdraws a commitment already made to somebody outside the company, so it gets its own rule and its own approval."
+
+  # ---------------------------------------------------------------- documents
+  # Forms arriving is the largest piece of real HR work here, so it is tested
+  # like everything else. `attachment.text` is the document as it arrived; the
+  # agent reads it against this company's own form templates in forms.yaml.
+
+  - id: AC-16
+    message: "Here is my completed new starter form."
+    requester: emp_005
+    attachment:
+      text: |
+        NEW STARTER FORM
+        Full name: Lena Fischer
+        Start date: 2026-11-24
+        Personal email: lena.fischer@example.test
+        Phone: 07700 900512
+        Emergency contact: Jonas Fischer, 07700 900513
+        Bank details: 12-34-56 / 45678901
+        Dietary requirements: none
+    expect_rule: D4
+    expect_mode: prepare
+    note: "A complete form. Every field is read back for a person to confirm, and the bank details are reported as present rather than quoted. Filing it is still an approval."
+
+  - id: AC-17
+    message: "Attaching my right to work check."
+    requester: emp_004
+    attachment:
+      text: |
+        RIGHT TO WORK CHECK
+        Full name: Sam Okafor
+        Document seen:
+        Checked by: Hana Suzuki
+        Check date: 2026-11-10
+    expect_rule: D3
+    expect_mode: prepare
+    note: "Incomplete: 'Document seen' is blank. The reply names exactly what is missing and files nothing. Nobody is chased -- a person decides whether to."
+
+  - id: AC-18
+    message: "Here is my medical certificate from the doctor."
+    requester: emp_002
+    attachment:
+      text: |
+        MEDICAL CERTIFICATE
+        Patient: Tomas Brandt
+        Diagnosed with a lower back strain; signed off for ten days.
+    expect_rule: D1
+    expect_mode: hand_over
+    note: "Restricted by TYPE, not by contents -- deciding that by reading it would mean reading it. Nothing is extracted, nothing is filed, nothing is summarised."
+
+  - id: AC-19
+    message: "I have attached my completed new starter form."
+    requester: emp_005
+    expect_rule: D0
+    expect_mode: hand_over
+    note: "The message claims an attachment and none arrived. Without D0 this reached the catch-all, which told the person 'nothing matched' rather than the one thing they could fix."
+
+  - id: AC-20
+    message: "Can you file this for me please."
+    requester: emp_003
+    attachment:
+      text: |
+        TRAINING CERTIFICATE
+        Awarded to Priya Raman for completing Advanced Spreadsheet Modelling.
+        Issued 4 November 2026 by the Institute of Finance.
+    expect_rule: D2
+    expect_mode: hand_over
+    note: "Not a form this company has declared, so the agent does not guess what it is. A person decides, and nothing is filed against anybody's record in the meantime."

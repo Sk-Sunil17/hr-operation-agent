@@ -1,0 +1,10 @@
+# Meridian's version: longer, and split across more roles.
+items:
+  - { id: handover,         label: "Documented handover accepted by the line manager", owner_role: line_manager }
+  - { id: resignation_ack,  label: "Resignation acknowledged in writing",              owner_role: hr_operations }
+  - { id: equipment,        label: "Company equipment returned and logged",            owner_role: hr_operations }
+  - { id: leaver_form,      label: "Leaver form completed",                            owner_role: hr_operations, document: leaver_form }
+  - { id: final_settlement, label: "Final settlement calculated",                      owner_role: reward_lead }
+  - { id: entity_clearance, label: "Entity clearance signed off",                      owner_role: regional_director }
+  - { id: access_removed,   label: "System access closed",                             owner_role: hr_operations, before_last_day: false }
+  - { id: exit_interview,   label: "Exit interview offered",                           owner_role: hr_business_partner, before_last_day: false }

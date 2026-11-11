@@ -1,0 +1,10 @@
+people:
+  - { id: emp_001, name: Maya Iyer,      email: maya@acme.test,   manager_id: emp_010, entity: acme, employment_type: full_time, roles: [employee], timezone: Europe/London, start_date: "2024-03-04" }
+  - { id: emp_002, name: Tomas Brandt,   email: tomas@acme.test,  manager_id: emp_010, entity: acme, employment_type: part_time, roles: [employee], timezone: Europe/London, start_date: "2025-01-13" }
+  - { id: emp_003, name: Priya Raman,    email: priya@acme.test,  manager_id: emp_011, entity: acme, employment_type: full_time, roles: [employee], timezone: Europe/London, start_date: "2023-09-18" }
+  - { id: emp_004, name: Sam Okafor,     email: sam@acme.test,    manager_id: emp_011, entity: acme, employment_type: contractor, roles: [employee], timezone: Europe/London, start_date: "2026-02-02" }
+  - { id: emp_005, name: Lena Fischer,   email: lena@acme.test,   manager_id: emp_010, entity: acme, employment_type: full_time, roles: [employee], timezone: Europe/London, start_date: "2026-11-24" }
+  - { id: emp_010, name: Ravi Menon,     email: ravi@acme.test,   manager_id: emp_020, entity: acme, employment_type: full_time, roles: [employee], timezone: Europe/London, start_date: "2022-05-09" }
+  - { id: emp_011, name: Dana Whitfield, email: dana@acme.test,   manager_id: emp_020, entity: acme, employment_type: full_time, roles: [employee], timezone: Europe/London, start_date: "2022-07-11" }
+  - { id: emp_020, name: Joel Asante,    email: joel@acme.test,   manager_id: null,    entity: acme, employment_type: full_time, roles: [hr_lead], timezone: Europe/London, start_date: "2021-02-01" }
+  - { id: emp_021, name: Hana Suzuki,    email: hana@acme.test,   manager_id: emp_020, entity: acme, employment_type: full_time, roles: [hr_partner], timezone: Europe/London, start_date: "2023-04-17" }

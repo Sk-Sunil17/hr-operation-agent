@@ -1,0 +1,11 @@
+# Supplied by the company. The kernel has no holiday knowledge of its own.
+holidays:
+  meridian_sg:
+    - { date: "2026-12-25", name: "Christmas Day" }
+    - { date: "2027-01-01", name: "New Year's Day" }
+  meridian_my:
+    - { date: "2026-12-25", name: "Christmas Day" }
+    - { date: "2027-01-01", name: "New Year's Day" }
+  meridian_hk:
+    - { date: "2026-12-25", name: "Christmas Day" }
+    - { date: "2026-12-26", name: "The first weekday after Christmas Day" }

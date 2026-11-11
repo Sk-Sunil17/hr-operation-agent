@@ -1,0 +1,122 @@
+# Harbour's own acceptance tests. The same questions as the other two companies
+# reach different outcomes here, because this company tightened the rules.
+
+cases:
+  - id: HC-01
+    message: "How much annual leave do I accrue each month?"
+    requester: hc_101
+    expect_rule: E1
+    expect_mode: prepare
+    note: "Acme answers this alone. Harbour reviews every written answer."
+
+  - id: HC-02
+    message: "Am I entitled to carry over the leave I did not take?"
+    requester: hc_101
+    expect_rule: E2
+    expect_mode: prepare
+
+  - id: HC-03
+    message: "Am I entitled to carry over the leave I did not take?"
+    requester: hc_103
+    expect_rule: E2
+    expect_mode: hand_over
+    note: "Bank staff: separate terms, so the segment sends it to a person."
+
+  - id: HC-04
+    message: "A charge nurse has been making remarks about my accent in front of patients."
+    requester: hc_102
+    expect_rule: R1
+    expect_mode: hand_over
+
+  - id: HC-05
+    message: "Please change my home address to 9 Pier Road, Dartmouth."
+    requester: hc_104
+    expect_rule: A1
+    expect_mode: prepare
+
+  - id: HC-06
+    message: "Please change my home address to 9 Pier Road, Dartmouth."
+    requester: hc_101
+    expect_rule: A1
+    expect_mode: hand_over
+    note: "Union member: the same request goes to a person at this company."
+
+  - id: HC-07
+    message: "How much notice do I have to give before taking leave?"
+    requester: hc_102
+    expect_rule: E1
+    expect_mode: prepare
+
+  - id: HC-08
+    message: "What is the parking arrangement at the north site?"
+    requester: hc_101
+    expect_rule: E3
+    expect_mode: hand_over
+    note: "No policy in force covers it."
+
+  - id: HC-09
+    message: "Please publish version 5 of the leave policy."
+    requester: hc_402
+    expect_rule: P1
+    expect_mode: refuse
+
+  - id: HC-10
+    message: "Daniel starts in five weeks, is he ready to go?"
+    requester: hc_402
+    subject: hc_104
+    expect_rule: O1
+    expect_mode: prepare
+
+  - id: HC-11
+    message: "What is Pierre's home address?"
+    requester: hc_101
+    subject: hc_102
+    expect_rule: W1
+    expect_mode: refuse
+
+  - id: HC-12
+    message: "Where has my address change got to?"
+    requester: hc_104
+    expect_rule: S1
+    expect_mode: prepare
+
+  - id: HC-13
+    message: "Please arrange a clinical interview tomorrow for the Senior Nurse role."
+    requester: hc_401
+    expect_rule: I3
+    expect_mode: prepare
+    note: "72 hours' notice here, so tomorrow is impossible. The reply lists every constraint that got in the way rather than declining, because a person can relax any of them."
+
+  - id: HC-14
+    message: "Please arrange a screening call with Mireille Gagnon (mireille.g@example.test) for the Senior Nurse role, with Jonas Berg."
+    requester: hc_401
+    expect_rule: I1
+    expect_mode: prepare
+    note: "Open seven days a week, 07:00 to 21:00, so the search covers days the other two companies do not work at all."
+
+  # ---------------------------------------------------------------- documents
+  - id: HC-15
+    message: "Attaching my right to work check."
+    requester: hc_104
+    attachment:
+      text: |
+        RIGHT TO WORK CHECK
+        Full name: Daniel Antoine
+        Document seen: Passport
+        Checked by: Ruth Okonjo
+        Check date: 2026-11-09
+    expect_rule: D4
+    expect_mode: hand_over
+    note: "Same rule as the other two companies, tightened: this company will not even let the agent PREPARE a filing of clinical paperwork. A person does it."
+
+  - id: HC-16
+    message: "Here is my sick note."
+    requester: hc_202
+    attachment:
+      text: |
+        MEDICAL CERTIFICATE
+        Patient: Tomas Lindgren
+        Signed off for one week.
+    expect_rule: D1
+    expect_mode: hand_over
+    note: "A clinic handles more of these than anyone, and reads none of them."

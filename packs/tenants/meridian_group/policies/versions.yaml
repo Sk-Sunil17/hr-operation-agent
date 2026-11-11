@@ -1,0 +1,41 @@
+policies:
+  - id: POL-LEAVE
+    title: Group Leave Policy
+    owner_role: hr_business_partner
+    review_months: 12
+    versions:
+      - { version: "3.0", status: in_force, effective_from: "2026-04-01", file: leave-v3.0.md }
+      - { version: "2.4", status: retired, effective_from: "2023-04-01", effective_to: "2026-03-31", file: leave-v2.4.md }
+
+  - id: POL-CONDUCT
+    title: Code of Conduct
+    owner_role: er_specialist
+    review_months: 24
+    versions:
+      - { version: "4.1", status: in_force, effective_from: "2025-10-01", file: conduct-v4.1.md }
+
+  - id: POL-GRIEVANCE
+    title: Grievance Procedure
+    owner_role: er_specialist
+    review_months: 24
+    versions:
+      - { version: "2.0", status: in_force, effective_from: "2025-01-01", file: grievance-v2.0.md }
+
+  - id: POL-FLEX
+    title: Flexible Working
+    owner_role: hr_business_partner
+    review_months: 12
+    versions:
+      - { version: "1.0", status: in_force, effective_from: "2025-07-01", file: flexible-v1.0.md }
+      # Approved but not yet in force. The agent must not quote it before the date.
+      - { version: "1.1", status: scheduled, effective_from: "2027-01-01", file: flexible-v1.1.md }
+
+  # Two versions in force at once, each scoped to an entity. This is legitimate
+  # and must not be mistaken for the conflict the agent refuses to answer past.
+  - id: POL-ONBOARD
+    title: New Joiner Requirements
+    owner_role: hr_operations
+    review_months: 12
+    versions:
+      - { version: "2.0-sg", status: in_force, effective_from: "2026-01-01", scope: { entity: meridian_sg }, file: onboarding-sg-v2.0.md }
+      - { version: "2.0-hk", status: in_force, effective_from: "2026-01-01", scope: { entity: meridian_hk }, file: onboarding-hk-v2.0.md }

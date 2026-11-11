@@ -1,0 +1,39 @@
+# Case types a rule may open. A case is how work that outlives one message is
+# tracked, and how "a person has taken this over" is recorded.
+
+cases:
+  - id: sensitive_matter
+    label: "Sensitive matter"
+    intent: enquiry
+    for_restricted: true      # any restricted request belongs to this case, whatever its intent
+    description: "A grievance, complaint, injury, pay dispute or wellbeing matter. Always owned by a person."
+
+  - id: record_change
+    label: "Record change"
+    intent: admin
+    description: "A change to employee-held data, prepared by the agent and committed only after approval."
+
+  - id: document_intake
+    label: "Document intake"
+    intent: document
+    description: "A form or document being received, checked for completeness and filed."
+
+  - id: onboarding
+    label: "Onboarding"
+    intent: onboarding
+    description: "Getting a new starter ready, tracked against the company's own readiness list."
+
+  - id: exit
+    label: "Exit"
+    intent: offboarding
+    description: "A departure checklist. Only ever started by a person."
+
+  - id: scheduling
+    label: "Scheduling"
+    intent: interview
+    description: "Finding a time across several people's calendars and proposing it."
+
+  - id: unresolved
+    label: "Unresolved"
+    intent: unknown
+    description: "Nothing in the case matrix matched. A person decides what this is."

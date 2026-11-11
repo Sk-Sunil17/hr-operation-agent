@@ -1,0 +1,8 @@
+# Clinical onboarding checks more than an office job, and more of it blocks.
+items:
+  - { id: registration,      label: "Professional registration verified", document: registration_check, blocking: true }
+  - { id: references,        label: "Two clinical references received",   document: reference_pack,     blocking: true }
+  - { id: right_to_work,     label: "Right to work verified",             document: right_to_work,      blocking: true }
+  - { id: bank_details,      label: "Bank details for payroll",           field: bank_details,          blocking: true }
+  - { id: emergency_contact, label: "Emergency contact",                  field: emergency_contact }
+  - { id: phone,             label: "Contact number for the rota",        field: phone,                 blocking: true }

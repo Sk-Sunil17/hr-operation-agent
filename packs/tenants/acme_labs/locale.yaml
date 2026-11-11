@@ -1,0 +1,10 @@
+timezone: Europe/London
+date_format: "d MMM yyyy"
+week_start: monday
+languages: [en]
+currency: GBP
+working_hours:
+  start: "09:00"
+  end: "17:30"
+  days: [monday, tuesday, wednesday, thursday, friday]
+holiday_calendar: null

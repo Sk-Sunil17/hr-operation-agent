@@ -1,0 +1,10 @@
+timezone: Asia/Singapore
+date_format: "yyyy-MM-dd"
+week_start: monday
+languages: [en, zh]
+currency: SGD
+working_hours:
+  start: "08:30"
+  end: "18:00"
+  days: [monday, tuesday, wednesday, thursday, friday]
+holiday_calendar: holidays.yaml

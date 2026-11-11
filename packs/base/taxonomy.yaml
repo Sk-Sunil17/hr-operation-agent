@@ -1,0 +1,137 @@
+# What the agent can recognise, and what the rule engine is allowed to test.
+#
+# Facts are declared here so that a typo in a rule predicate fails when the pack
+# loads, not when an employee is waiting for an answer.
+
+intents:
+  enquiry: "A question about policy or entitlement."
+  admin: "A change to a record the company holds."
+  document: "A form or document arriving, or being chased."
+  onboarding: "A person joining."
+  offboarding: "A person leaving."
+  interview: "Arranging an interview or panel."
+  policy: "Publishing, changing or retiring a policy."
+  status: "Asking where an earlier request got to."
+  job: "A scheduled job rather than a person."
+  unknown: "Could not be placed in the taxonomy."
+
+sensitivities:
+  routine: "Anyone in the company could be told this."
+  personal: "The answer depends on this individual's circumstances."
+  restricted: "A person must handle this. The agent never drafts an answer."
+
+facts:
+  intent:
+    label: "What the request is"
+    type: enum
+    values: [enquiry, admin, document, onboarding, offboarding, interview, policy, status, job, unknown]
+
+  sensitivity:
+    label: "How sensitive the request is"
+    type: enum
+    values: [routine, personal, restricted]
+
+  policy_found:
+    label: "A policy version in force covers this"
+    type: bool
+
+  policy_conflict:
+    label: "More than one version of the policy is in force"
+    type: bool
+
+  owns_record:
+    label: "The request concerns the requester's own record (true when it concerns nobody in particular)"
+    type: bool
+
+  is_manager_of_subject:
+    label: "The requester manages the person the request is about"
+    type: bool
+
+  has_hr_role:
+    label: "The requester holds a role this company treats as HR"
+    type: bool
+
+  has_requester:
+    label: "A person asked for this (false for a scheduled job)"
+    type: bool
+
+  has_open_case:
+    label: "There is already an open case for this"
+    type: bool
+
+  case_taken_over:
+    label: "A person has taken this over, so the agent stops"
+    type: bool
+
+  compound:
+    label: "One message contains several separate requests"
+    type: bool
+
+  confidence_low:
+    label: "Classification was not confident enough to act on"
+    type: bool
+
+  writes_owned_field:
+    label: "Every field being changed is owned by a configured adapter"
+    type: bool
+
+  document_type:
+    label: "Whether the document was recognised"
+    type: enum
+    values: [known, unknown, restricted, missing]
+
+  document_complete:
+    label: "Every required field on the form is filled in"
+    type: bool
+
+  within_lead_window:
+    label: "The start date is close enough for a readiness check to be useful"
+    type: bool
+
+  has_exit_case:
+    label: "A person has opened an exit case"
+    type: bool
+
+  has_calendar:
+    label: "A calendar system is connected, so free/busy can be read at all"
+    type: bool
+
+  slot_available:
+    label: "At least one time satisfies this company's notice, buffer and daily limits"
+    type: bool
+
+  interview_action:
+    label: "Whether this arranges an interview, moves one, or calls one off"
+    type: enum
+    values: [schedule, reschedule, cancel]
+
+  reminder_cap_reached:
+    label: "This has already been chased as often as the company allows"
+    type: bool
+
+  job_kind:
+    label: "Which scheduled job is running"
+    type: enum
+    values: [expiry_scan, readiness, policy_review, reminders, interview_horizon]
+
+# What a person writes, mapped to the canonical field name an adapter may own.
+# Without this, "update my address" cannot be checked against what any system
+# actually owns, and the agent would be guessing.
+field_hints:
+  address: home_address
+  home address: home_address
+  postal address: home_address
+  phone: phone
+  phone number: phone
+  mobile: phone
+  telephone: phone
+  email: personal_email
+  email address: personal_email
+  personal email: personal_email
+  bank: bank_details
+  bank details: bank_details
+  bank account: bank_details
+  emergency contact: emergency_contact
+  next of kin: emergency_contact
+  preferred name: preferred_name
+  name: preferred_name

@@ -1,0 +1,41 @@
+# Meridian Group: large, multi-entity, works council in one entity. Longer
+# notice, a cap that reflects how much interviewing a manager can absorb on top
+# of a day job, and a two-person minimum on everything but the first call.
+
+default_duration_minutes: 60
+min_notice_hours: 48
+buffer_minutes: 30
+max_per_day_per_interviewer: 2
+search_days: 15
+propose_slots: 3
+slot_step_minutes: 30
+default_location: "To be confirmed by the hiring team"
+
+notify_candidate: true
+notify_panel: true
+
+stages:
+  - id: screening
+    label: "Screening call"
+    duration_minutes: 30
+    detect: [screening, screen, phone screen, intro call]
+    panel_min: 1
+
+  - id: technical
+    label: "Technical interview"
+    duration_minutes: 75
+    detect: [technical, tech interview, assessment, case study]
+    panel_min: 2
+
+  - id: panel
+    label: "Panel interview"
+    duration_minutes: 120
+    detect: [panel, onsite, assessment centre, loop]
+    panel_min: 3
+
+  - id: final
+    label: "Final interview"
+    duration_minutes: 60
+    detect: [final, closing, director, partner interview]
+    panel_min: 2
+    panel_roles: [hr_business_partner]

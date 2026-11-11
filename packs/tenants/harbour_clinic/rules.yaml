@@ -1,0 +1,19 @@
+# Harbour tightens everything that could act alone. The loader would refuse the
+# reverse, so this file can only ever make the agent more cautious.
+
+rules:
+  - id: E1
+    mode: prepare
+    reason: "Nothing reaches a clinician in writing without a person having read it, however routine the question."
+
+  - id: S1
+    mode: prepare
+    reason: "A status update is still a written answer here, and it is reviewed like any other."
+
+  - id: E4
+    mode: hand_over
+    reason: "An unclear request from someone working a shift is picked up by a person rather than answered with a question."
+
+  - id: D4
+    mode: hand_over
+    reason: "Clinical paperwork is confirmed by a person, not prepared for approval."

@@ -1,0 +1,156 @@
+# Generic redaction pack. No country, no scheme, no local identifier format.
+#
+# Patterns are anchored on generic keywords. A company adds its own local formats
+# in its pack's redaction.yaml, which is the only place a jurisdiction-specific
+# identifier is ever named.
+#
+# Two conventions:
+#
+#  * ORDER MATTERS. Patterns apply in the order listed, so a specific shape must
+#    come before a general one that could swallow part of it. `phone` before
+#    `card_number` would leave the last four digits of a card in the clear.
+#
+#  * A KEYED PATTERN KEEPS ITS LEAD-IN. The keyword and filler are captured as
+#    group 1 and put back, so the sentence still reads "account number is
+#    [account number]". Replacing the whole match leaves a reviewer with a bare
+#    label and no sentence. Keyed patterns also tolerate the filler people
+#    actually write -- "is", ":", "=", "no." -- because an identifier that
+#    survives redaction because of the word "is" is not redacted.
+
+id: generic
+
+patterns:
+  # ---------------------------------------------------------- specific shapes
+  - name: email
+    class: email
+    regex: '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'
+    replacement: '[email]'
+
+  - name: iban
+    class: bank_identifier
+    regex: '\b[A-Z]{2}\d{2}[A-Z0-9]{10,30}\b'
+    replacement: '[bank identifier]'
+
+  - name: card_number
+    class: account_number
+    regex: '\b(?:\d{4}[ -]?){3}\d{4}\b'
+    replacement: '[card number]'
+
+  # ---------------------------------------------------------- keyed identifiers
+  - name: account_number_keyed
+    class: account_number
+    regex: '(?i)\b((?:account|acct)\s*(?:number|no\.?)?\s*(?:is|are|=|:|#|-)?\s*)(\d[\d -]{4,20}\d)'
+    replacement: '\1[account number]'
+
+  - name: bank_identifier_keyed
+    class: bank_identifier
+    regex: '(?i)\b((?:sort|routing|branch|bank|swift|bic)\s*code\s*(?:is|=|:|#|-)?\s*)([A-Z0-9][A-Z0-9 -]{3,15}[A-Z0-9])'
+    replacement: '\1[bank identifier]'
+
+  - name: national_id_keyed
+    class: national_id
+    regex: '(?i)\b((?:national|government|identity|tax)\s*(?:id|identifier|number|no\.?)\s*(?:is|=|:|#|-)?\s*)([A-Z0-9][A-Z0-9 -]{4,20}[A-Z0-9])'
+    replacement: '\1[national id]'
+
+  - name: passport_keyed
+    class: passport
+    regex: '(?i)\b(passport\s*(?:number|no\.?)?\s*(?:is|=|:|#|-)?\s*)([A-Z0-9][A-Z0-9 -]{4,15}[A-Z0-9])'
+    replacement: '\1[passport]'
+
+  - name: member_number_keyed
+    class: member_number
+    regex: '(?i)\b((?:member|membership|policy|scheme)\s*(?:number|no\.?|id)\s*(?:is|=|:|#|-)?\s*)([A-Z0-9][A-Z0-9 -]{3,20}[A-Z0-9])'
+    replacement: '\1[member number]'
+
+  # The value is an enumerated date shape, not a character class. A class like
+  # [0-9A-Za-z /-]+ is greedy across spaces and runs past the date into the next
+  # clause: "my DOB is 14/03/1991 and my payroll ref" masked as far as "payrol".
+  #
+  # An unkeyed date is deliberately NOT masked. HR text is full of leave dates,
+  # start dates and policy dates, and masking those would destroy the record.
+  - name: date_of_birth_keyed
+    class: date_of_birth
+    regex: '(?i)\b((?:date of birth|born on|d\.?o\.?b\.?)\s*(?:is|was|=|:|#|-)?\s*)(\d{1,4}[/-]\d{1,2}[/-]\d{2,4}|\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9},?\s+\d{2,4}|[A-Za-z]{3,9}\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{2,4})'
+    replacement: '\1[date of birth]'
+
+  # ---------------------------------------------------------- general shapes
+  # Two phone patterns, because shape alone cannot separate a phone number from
+  # a date: "2026-01-01" is eight digits and so is a short phone number.
+  #
+  #   keyed    a phone word is present, so six or more digits is enough
+  #   unkeyed  no phone word, so nine or more digits are required, which is above
+  #            every date format and above an employee or invoice number
+  - name: phone_keyed
+    class: phone
+    regex: '(?i)\b((?:phone|mobile|telephone|tel|cell|contact (?:number|no\.?)|call (?:me )?(?:on|at))\s*(?:is|=|:|#)?\s*)((?:\+\d{1,3}[ -]?)?(?:\(\d{1,4}\)[ -]?)?\d(?:[ -]?\d){5,14})(?!\w)'
+    replacement: '\1[phone]'
+
+  # The lookahead excludes an ISO date. Nine digits is above every date FORMAT,
+  # as the note above says, but it is not above a date next to a time:
+  # "2026-11-12 09:00" offers ten digits separated by a dash and a space, and was
+  # masked as a phone number. Nothing could say when an interview was until this
+  # was fixed. A real phone number never opens with a four-digit year and two
+  # dash-separated pairs, so the guard costs no coverage -- a phone sitting
+  # beside a date is still masked.
+  - name: phone
+    class: phone
+    regex: '(?<![\w.])(?!\d{4}-\d{2}-\d{2})(?:\+\d{1,3}[ -]?)?(?:\(\d{1,4}\)[ -]?)?\d(?:[ -]?\d){8,14}(?!\w)'
+    replacement: '[phone]'
+
+  - name: street_address
+    class: street_address
+    regex: '(?i)\b\d{1,5}[a-z]?[ ,]+(?:[A-Z][a-z]+[ ,]+){1,3}(?:street|st\.?|road|rd\.?|avenue|ave\.?|lane|ln\.?|drive|dr\.?|close|court|ct\.?|place|pl\.?|way|terrace|boulevard|blvd\.?)\b'
+    replacement: '[street address]'
+
+  # Masks the condition, not the rest of the sentence: it stops at punctuation or
+  # at a conjunction, so the surrounding text stays readable for a reviewer.
+  - name: diagnosis_phrase
+    class: medical_term
+    regex: '(?i)\b(?:diagnos(?:ed|is) (?:with|of)|prescribed|suffering from)\s+[^.,;\n]{3,40}?(?=\s+(?:and|but|so|because|which|after|since)\b|[.,;\n]|$)'
+    replacement: '[medical detail]'
+
+# Keys dropped from any structure before it is stored or logged, matched by name.
+#
+# What belongs here: credentials, banking, government identifiers, medical and
+# pay. A field name is a more reliable signal than a regex over its contents, so
+# anything named like this is dropped whatever it holds.
+#
+# What does NOT belong here: contact details. An email or phone is masked by the
+# text patterns above, which keeps the surrounding record readable for a reviewer.
+# Dropping the whole field instead would make the audit trail useless to read.
+sensitive_keys:
+  # credentials
+  - password
+  - passphrase
+  - token
+  - secret
+  - api_key
+  # banking
+  - bank_details
+  - bank_account
+  - account_holder
+  - account_number
+  - sort_code
+  - routing_number
+  - iban
+  - swift
+  - bic
+  - card_number
+  - cvv
+  - security_code
+  # government identifiers
+  - national_id
+  - tax_id
+  - passport_number
+  - date_of_birth
+  - dob
+  - home_address
+  # medical
+  - medical_notes
+  - medical_certificate
+  - diagnosis
+  - health_data
+  # pay
+  - salary
+  - pay_rate
+  - bonus

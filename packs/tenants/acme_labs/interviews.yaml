@@ -1,0 +1,43 @@
+# How Acme Labs interviews. Flat company, moves fast, short notice is normal.
+#
+# Every number here is an operational choice, not a legal one. The agent does no
+# working-time arithmetic: `min_notice_hours` is this company's courtesy to a
+# candidate and nothing more.
+
+default_duration_minutes: 60
+min_notice_hours: 24
+buffer_minutes: 15
+max_per_day_per_interviewer: 3
+search_days: 10
+propose_slots: 3
+slot_step_minutes: 15
+default_location: "Acme Labs, meeting room 2 (or a video link)"
+
+notify_candidate: true
+notify_panel: true
+
+stages:
+  - id: screening
+    label: "Screening call"
+    duration_minutes: 30
+    detect: [screening, screen, phone screen, intro call, first call]
+    panel_min: 1
+
+  - id: technical
+    label: "Technical interview"
+    duration_minutes: 60
+    detect: [technical, tech interview, coding, pairing, systems]
+    panel_min: 2
+
+  - id: panel
+    label: "Panel interview"
+    duration_minutes: 90
+    detect: [panel, onsite, loop]
+    panel_min: 2
+
+  - id: final
+    label: "Final interview"
+    duration_minutes: 45
+    detect: [final, closing, offer conversation, head of people]
+    panel_min: 1
+    panel_roles: [hr_lead]

@@ -1,0 +1,29 @@
+policies:
+  - id: POL-LEAVE
+    title: Leave Policy
+    owner_role: hr_lead
+    review_months: 12
+    versions:
+      - { version: "1.2", status: in_force, effective_from: "2026-01-01", file: leave-v1.2.md }
+
+  - id: POL-REMOTE
+    title: Remote and Flexible Working Policy
+    owner_role: hr_lead
+    review_months: 12
+    versions:
+      - { version: "2.0", status: in_force, effective_from: "2026-07-01", file: remote-v2.0.md }
+      - { version: "1.0", status: retired, effective_from: "2024-01-01", effective_to: "2026-06-30", file: remote-v1.0.md }
+
+  - id: POL-CONDUCT
+    title: Code of Conduct
+    owner_role: hr_lead
+    review_months: 24
+    versions:
+      - { version: "1.0", status: in_force, effective_from: "2025-04-01", file: conduct-v1.0.md }
+
+  - id: POL-ONBOARD
+    title: New Starter Requirements
+    owner_role: hr_partner
+    review_months: 12
+    versions:
+      - { version: "1.1", status: in_force, effective_from: "2026-02-01", file: onboarding-v1.1.md }

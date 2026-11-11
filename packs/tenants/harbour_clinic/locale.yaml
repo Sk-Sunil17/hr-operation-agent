@@ -1,0 +1,10 @@
+timezone: America/Halifax
+date_format: "d MMMM yyyy"
+week_start: sunday
+languages: [en, fr]
+currency: CAD
+working_hours:
+  start: "07:00"
+  end: "21:00"
+  days: [monday, tuesday, wednesday, thursday, friday, saturday, sunday]
+holiday_calendar: null

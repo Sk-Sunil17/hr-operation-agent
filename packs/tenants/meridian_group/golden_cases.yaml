@@ -1,0 +1,124 @@
+# Meridian's acceptance tests. The same questions as Acme's reach different
+# modes here, because this company tightened the rules. Same kernel, no code.
+
+cases:
+  - id: MG-01
+    message: "How many days of annual leave am I entitled to?"
+    requester: mg_1001
+    expect_rule: E1
+    expect_mode: prepare
+    note: "Acme answers this automatically. Meridian tightened E1, so a person approves it."
+
+  - id: MG-02
+    message: "Can I carry forward the leave I did not use this year?"
+    requester: mg_1001
+    expect_rule: E2
+    expect_mode: prepare
+
+  - id: MG-03
+    message: "I want to raise a grievance about my line manager."
+    requester: mg_1003
+    expect_rule: R1
+    expect_mode: hand_over
+    note: "Straight to the Employee Relations Specialist. No draft."
+
+  - id: MG-04
+    message: "I was injured during a site visit last week and need to discuss it."
+    requester: mg_1004
+    expect_rule: R1
+    expect_mode: hand_over
+
+  - id: MG-05
+    message: "Please change my registered home address to 41 Jalan Bukit Merah, Singapore 150041."
+    requester: mg_1001
+    expect_rule: A1
+    expect_mode: prepare
+
+  - id: MG-06
+    message: "Please change my registered home address to 41 Jalan Bukit Merah, Singapore 150041."
+    requester: mg_1002
+    expect_rule: A1
+    expect_mode: hand_over
+    note: "Same request, collective-agreement population: the segment overlay tightens it to a person."
+
+  - id: MG-07
+    message: "What are the flexible working rules from next January?"
+    requester: mg_1001
+    expect_rule: E1
+    expect_mode: prepare
+    note: "Version 1.1 is scheduled, not in force: only 1.0 may be quoted."
+
+  - id: MG-08
+    message: "What do I need to submit before my start date?"
+    requester: mg_1006
+    expect_rule: E1
+    expect_mode: prepare
+    note: "Two onboarding versions are in force, scoped by entity. Scope resolves it; it is not a conflict."
+
+  - id: MG-09
+    message: "What notice period applies to my contractor agreement?"
+    requester: mg_1005
+    expect_rule: E2
+    expect_mode: hand_over
+    note: "Contractor segment: questions about their terms go to a person."
+
+  - id: MG-10
+    message: "Please retire version 2.4 of the leave policy."
+    requester: mg_4001
+    expect_rule: P1
+    expect_mode: refuse
+
+  - id: MG-11
+    message: "Where has my address change got to?"
+    requester: mg_1001
+    expect_rule: S1
+    expect_mode: prepare
+    note: "Even status is reviewed here."
+
+  - id: MG-12
+    message: "Elena is leaving at the end of the month, what happens next?"
+    requester: mg_4002
+    subject: mg_2003
+    expect_rule: X1
+    expect_mode: refuse
+    note: "No exit case has been opened by a person, so there is nothing to act on."
+
+  - id: MG-13
+    message: "Please set up a technical interview with Astrid Lindqvist (astrid.l@example.test) for the Treasury Analyst role, with Wei Lin Tan."
+    requester: mg_4001
+    expect_rule: I1
+    expect_mode: prepare
+    note: "48 hours' notice and a 30-minute buffer here, against Acme's 24 and 15. Same kernel, different numbers, and the numbers come from the pack."
+
+  - id: MG-14
+    message: "Please reschedule the technical interview with Astrid Lindqvist."
+    requester: mg_4001
+    expect_rule: I2
+    expect_mode: prepare
+    note: "Moving one takes back a time a candidate was already given, which is a different act from arranging one."
+
+  # ---------------------------------------------------------------- documents
+  - id: MG-15
+    message: "Please file my signed appointment letter."
+    requester: mg_1001
+    attachment:
+      text: |
+        SIGNED APPOINTMENT LETTER
+        Full name: Wei Lin Tan
+        Entity: Meridian Singapore
+        Signed on: 2026-11-09
+    expect_rule: D4
+    expect_mode: prepare
+    note: "This company declares an appointment letter where another declares a contract. Same rule, different form library, no kernel change."
+
+  - id: MG-16
+    message: "Here is my fit note."
+    requester: mg_1002
+    attachment:
+      text: |
+        MEDICAL CERTIFICATE
+        Patient: Arun Pillai
+        Unfit for work for five days.
+    expect_rule: D1
+    expect_mode: hand_over
+    note: "Restricted by type in every company, with no configuration that can turn it off."

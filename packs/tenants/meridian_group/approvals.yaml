@@ -1,0 +1,50 @@
+# Deep chains. Record changes need two approvers; sensitive matters sit with
+# employee relations, who never also approve the same request.
+
+roles:
+  employee: Employee
+  line_manager: Line Manager
+  hr_operations: HR Operations
+  hr_business_partner: HR Business Partner
+  er_specialist: Employee Relations Specialist
+  reward_lead: Reward Lead
+  regional_director: Regional Director
+
+matrix:
+  - when: { mode: prepare, intent: enquiry }
+    role: hr_operations
+    then_role: hr_business_partner
+
+  - when: { mode: prepare, intent: admin }
+    role: hr_operations
+    then_role: hr_business_partner
+
+  - when: { mode: prepare, intent: document }
+    role: hr_operations
+
+  - when: { mode: prepare, intent: onboarding }
+    role: hr_operations
+    then_role: line_manager
+
+  - when: { mode: prepare, intent: offboarding }
+    role: hr_business_partner
+    then_role: regional_director
+
+  - when: { mode: prepare, intent: interview }
+    role: hr_operations
+
+  - when: { mode: prepare, intent: status }
+    role: hr_operations
+
+delegation:
+  hr_operations: [hr_business_partner]
+  hr_business_partner: [regional_director]
+  er_specialist: [regional_director]
+
+# Roles that may act on another person's record.
+hr_roles:
+  - hr_operations
+  - hr_business_partner
+  - er_specialist
+  - reward_lead
+  - regional_director

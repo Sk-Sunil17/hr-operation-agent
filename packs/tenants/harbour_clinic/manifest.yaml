@@ -1,0 +1,36 @@
+# Harbour Clinic: ~300 people across two sites, shift-based and running around
+# the clock, with a recognised union. Deliberately unlike either of the other
+# two companies on every axis the pack format is supposed to absorb.
+#
+# This company trusts the agent least of the three: it has tightened every rule
+# that could act alone. Nothing here reaches a patient-facing clinician in
+# writing without a person reading it first.
+
+id: harbour_clinic
+name: Harbour Clinic
+extends: base
+channels: [web, email]
+tone: formal
+
+sla:
+  onboarding_lead_days: 45        # clinical checks take longer than a desk job
+  acknowledge_minutes: 15
+  answer_hours: 72
+  restricted_acknowledge_minutes: 10
+  reminder_cap: 3
+  reminder_interval_hours: 24
+
+escalation:
+  restricted_role: people_officer
+  verification_failure_role: practice_manager
+  default_role: practice_manager
+
+redaction_packs: [generic]
+
+metrics: {}                        # no baseline supplied, so no saving is claimed
+
+models:
+  provider: "null"
+  train_on_tenant_data: false
+
+jurisdiction_packs: []

@@ -1,0 +1,33 @@
+# Meridian Group: ~2,500 people across three legal entities, deep approval
+# chains, Teams and email, and a works council. Deliberately unlike Acme Labs
+# in every axis the pack format is supposed to absorb.
+#
+# This company does not let the agent answer anyone on its own. Its rules
+# overlay tightens the base ceiling; it cannot loosen it even if it tried.
+
+id: meridian_group
+name: Meridian Group
+extends: base
+channels: [web, teams, email]
+tone: formal
+
+sla:
+  acknowledge_minutes: 10
+  answer_hours: 48
+  restricted_acknowledge_minutes: 5
+  reminder_cap: 1
+  reminder_interval_hours: 72
+
+escalation:
+  restricted_role: er_specialist
+  verification_failure_role: hr_operations
+  default_role: hr_operations
+
+redaction_packs: [generic]
+
+models:
+  provider: "null"
+  residency: in-tenant
+  train_on_tenant_data: false
+
+jurisdiction_packs: []

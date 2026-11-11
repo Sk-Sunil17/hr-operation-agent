@@ -1,0 +1,225 @@
+# THE CASE MATRIX — the autonomy ceiling for every company.
+#
+# Rules are evaluated in this order and the first match wins, so order is part
+# of the meaning. The last rule has an empty `when` and therefore matches
+# everything, which is why the agent can never fall off the end of this list.
+#
+# A tenant pack may move any rule to a MORE restrictive mode, and may add a
+# citation requirement. It can never do the reverse: the loader refuses to
+# resolve a pack that tries, so no customer configuration and no injected
+# instruction can unlock a send that this file says needs a person.
+#
+#   mode: auto       the agent may act alone
+#         prepare    the agent drafts and prepares; a person approves before anything happens
+#         hand_over  a person takes it, with an acknowledgement to the requester
+#         refuse     the agent declines, and says why
+
+rules:
+  # ---------------------------------------------------------------- stop conditions
+
+  - id: T1
+    when: { case_taken_over: true }
+    mode: hand_over
+    reason: "A person has taken this matter over, so the agent stops contributing to it."
+
+  # Restricted comes before everything except a takeover. In particular it comes
+  # before the record-ownership rule below, so that someone reporting the conduct
+  # of a colleague is routed to a person rather than refused for asking about
+  # somebody else's situation.
+  - id: R1
+    when: { sensitivity: restricted }
+    mode: hand_over
+    opens_case: sensitive_matter
+    reason: "A restricted matter goes straight to a named person, with no drafted answer and no clarifying question."
+
+  - id: P1
+    when: { intent: policy }
+    mode: refuse
+    reason: "Publishing, changing or retiring a policy is a person's decision and the agent never makes it."
+
+  # `has_requester` matters: a scheduled job has nobody asking, which is not
+  # the same as somebody asking about another person. Without it a nightly
+  # expiry scan was refused for prying into records it was asked to check.
+  - id: W1
+    when: { has_requester: true, sensitivity: [routine, personal], owns_record: false, is_manager_of_subject: false, has_hr_role: false }
+    mode: refuse
+    reason: "This asks about another person's record, and the requester neither owns it, manages them, nor works in HR."
+
+  # ---------------------------------------------------------------- enquiries
+
+  - id: E0
+    when: { intent: enquiry, policy_conflict: true }
+    mode: hand_over
+    reason: "More than one version of the policy is in force, so nobody should be answered until that is corrected."
+
+  # Not limited to enquiries: a message too vague to act on is usually too
+  # vague to classify either, so requiring intent=enquiry made this rule
+  # unreachable and every unclear message fell to the catch-all with no draft.
+  # It sits after R1 and W1, so restricted matters and other people's records
+  # are still decided first.
+  - id: E4
+    when: { confidence_low: true }
+    mode: prepare
+    reason: "The request was not clear enough to act on, so a person sees it with a question they can send."
+
+  - id: E1
+    when: { intent: enquiry, sensitivity: routine, policy_found: true }
+    mode: auto
+    needs_citation: true
+    reason: "A routine policy question with one version in force may be answered directly, quoting that version."
+
+  - id: E2
+    when: { intent: enquiry, sensitivity: personal, policy_found: true }
+    mode: prepare
+    needs_citation: true
+    reason: "The answer depends on this person's circumstances, so a person confirms it before it is sent."
+
+  - id: E3
+    when: { intent: enquiry, policy_found: false }
+    mode: hand_over
+    reason: "No policy in force covers this question, so a person answers it rather than the agent improvising."
+
+  # ---------------------------------------------------------------- record changes
+
+  - id: A2
+    when: { intent: admin, writes_owned_field: false }
+    mode: refuse
+    reason: "No configured system here owns the field this request would change."
+
+  - id: A1
+    when: { intent: admin, owns_record: true, writes_owned_field: true }
+    mode: prepare
+    opens_case: record_change
+    reason: "A change to a real record is prepared with a preview and committed only after a person approves it."
+
+  - id: A3
+    when: { intent: admin, is_manager_of_subject: true, writes_owned_field: true }
+    mode: prepare
+    opens_case: record_change
+    reason: "A manager may ask for a change to their own report's record, and a person still approves it."
+
+  # Without this, an HR person changing somebody else's record falls through to
+  # the catch-all and is handed to a human with no draft -- which is the agent
+  # refusing to help the very people it exists to help. A4 was added after a test
+  # found that gap; the change is still prepared, never committed.
+  - id: A4
+    when: { intent: admin, has_hr_role: true, writes_owned_field: true }
+    mode: prepare
+    opens_case: record_change
+    reason: "Someone in HR may ask for a change to another person's record, and a second person still approves it."
+
+  # ---------------------------------------------------------------- documents
+
+  # The message says a document is attached and none arrived. Without this the
+  # request reaches the catch-all, and the person is told "nothing matched"
+  # rather than the one thing they can actually fix.
+  - id: D0
+    when: { intent: document, document_type: missing }
+    mode: hand_over
+    reason: "The message refers to an attachment, but no document arrived with it."
+
+  - id: D1
+    when: { intent: document, document_type: restricted }
+    mode: hand_over
+    reason: "A restricted document is for a person to read, so the agent files nothing and extracts nothing."
+
+  - id: D2
+    when: { intent: document, document_type: unknown }
+    mode: hand_over
+    reason: "The agent could not recognise this document, so a person decides what it is."
+
+  - id: D3
+    when: { intent: document, document_complete: false }
+    mode: prepare
+    opens_case: document_intake
+    reason: "The form is missing required fields, so a person sees exactly what is missing before anyone is chased."
+
+  - id: D4
+    when: { intent: document, document_complete: true }
+    mode: prepare
+    opens_case: document_intake
+    reason: "Filing a document changes the record, so a person confirms the reading before it is filed."
+
+  # ---------------------------------------------------------------- joining and leaving
+
+  - id: O1
+    when: { intent: onboarding, within_lead_window: true }
+    mode: prepare
+    opens_case: onboarding
+    reason: "A readiness check reports the gaps for a person to act on, and closes none of them itself."
+
+  - id: O2
+    when: { intent: onboarding, within_lead_window: false }
+    mode: refuse
+    reason: "The start date is too far away for a readiness check to tell anyone anything useful yet."
+
+  - id: X1
+    when: { intent: offboarding, has_exit_case: false }
+    mode: refuse
+    reason: "An exit is started by a person, never by the agent, so there is nothing for it to act on."
+
+  - id: X2
+    when: { intent: offboarding, has_exit_case: true }
+    mode: prepare
+    opens_case: exit
+    reason: "The departure checklist is prepared for the case owner, who decides what actually happens."
+
+  # ---------------------------------------------------------------- scheduling and status
+
+  # Nothing to work with. Guessing when somebody is free, rather than reading
+  # it, is how a candidate is invited to an hour their interviewer is already in
+  # a meeting for -- so with no calendar connected the agent does not try.
+  - id: I0
+    when: { intent: interview, has_calendar: false }
+    mode: hand_over
+    reason: "No calendar system is connected here, so the agent cannot see when anybody is actually free."
+
+  # Calling one off is a different act from arranging one: it takes an hour back
+  # out of several calendars and tells somebody outside the company that the
+  # thing they were preparing for is not happening. A company that is happy for
+  # the agent to propose times may reasonably want this tighter, so it has its
+  # own rule to tighten.
+  - id: I4
+    when: { intent: interview, interview_action: cancel }
+    mode: prepare
+    opens_case: scheduling
+    reason: "Calling an interview off withdraws a commitment already made to a candidate, so a person decides it."
+
+  - id: I2
+    when: { intent: interview, interview_action: reschedule }
+    mode: prepare
+    opens_case: scheduling
+    reason: "Moving an interview takes back a time a candidate was already given, so a person approves the new one."
+
+  # No time works. This still prepares rather than refuses: the request was
+  # perfectly reasonable, and what a person needs is the list of constraints
+  # that got in the way, not a decline.
+  - id: I3
+    when: { intent: interview, slot_available: false }
+    mode: prepare
+    opens_case: scheduling
+    reason: "No time satisfies this company's own notice, buffer and daily limits, so a person chooses what to relax."
+
+  - id: I1
+    when: { intent: interview }
+    mode: prepare
+    opens_case: scheduling
+    reason: "Scheduling puts time in other people's calendars, so the proposal goes to a person first."
+
+  - id: S1
+    when: { intent: status, owns_record: true }
+    mode: auto
+    reason: "Telling someone the state of their own request quotes no policy and commits the company to nothing."
+
+  - id: J1
+    when: { intent: job }
+    mode: prepare
+    reason: "A scheduled job reports what it found and changes nothing on its own."
+
+  # ---------------------------------------------------------------- catch-all
+
+  - id: Z1
+    when: {}
+    mode: hand_over
+    opens_case: unresolved
+    reason: "Nothing in the case matrix matched this request, so a person decides what it is."

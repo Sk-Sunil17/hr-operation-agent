@@ -1,0 +1,48 @@
+# Harbour Clinic: shift-based, round the clock, seven days a week. The working
+# day in locale.yaml is 07:00-21:00 because that is when the clinic is open,
+# which makes the daily cap and the buffer matter more here than anywhere else:
+# without them the agent would happily propose a 20:30 interview to a charge
+# nurse who started at seven in the morning.
+#
+# This company trusts the agent least of the three, and it shows here too: long
+# notice, a hard cap of two, and a clinical interviewer on every panel.
+
+default_duration_minutes: 45
+min_notice_hours: 72
+buffer_minutes: 30
+max_per_day_per_interviewer: 2
+search_days: 21
+propose_slots: 4
+slot_step_minutes: 30
+default_location: "Harbour Clinic, Kirkland site — reception will direct you"
+
+notify_candidate: true
+notify_panel: true
+
+stages:
+  - id: screening
+    label: "Screening call"
+    duration_minutes: 30
+    detect: [screening, screen, phone screen, first call]
+    panel_min: 1
+
+  - id: clinical
+    label: "Clinical interview"
+    duration_minutes: 60
+    detect: [clinical, clinical interview, competency, scenario]
+    panel_min: 2
+    panel_roles: [clinical_lead]
+
+  - id: panel
+    label: "Panel interview"
+    duration_minutes: 90
+    detect: [panel, onsite, board]
+    panel_min: 3
+    panel_roles: [clinical_lead]
+
+  - id: final
+    label: "Final interview"
+    duration_minutes: 45
+    detect: [final, closing, practice manager]
+    panel_min: 2
+    panel_roles: [practice_manager]

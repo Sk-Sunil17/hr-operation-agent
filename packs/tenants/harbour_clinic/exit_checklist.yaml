@@ -1,0 +1,7 @@
+items:
+  - { id: rota_removed,     label: "Removed from future rotas",            owner_role: charge_nurse }
+  - { id: handover,         label: "Clinical handover completed",          owner_role: clinical_lead }
+  - { id: leaver_form,      label: "Leaver form returned",                 owner_role: people_officer, document: leaver_form }
+  - { id: equipment,        label: "Badge, keys and equipment returned",   owner_role: practice_manager }
+  - { id: registration_note, label: "Professional body notified if required", owner_role: clinical_lead, before_last_day: false }
+  - { id: final_pay,        label: "Final pay and unused leave confirmed", owner_role: people_officer, before_last_day: false }

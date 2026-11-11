@@ -1,0 +1,14 @@
+# Harbour's local formats: a clinical registration number and a staff badge.
+id: harbour
+patterns:
+  - name: harbour_registration
+    class: member_number
+    regex: '\bREG-[0-9]{6}-[A-Z]{2}\b'
+    replacement: '[registration number]'
+  - name: harbour_badge
+    class: member_number
+    regex: '(?i)\bbadge\s*(?:no\.?|number)?\s*[:#-]?\s*(H[0-9]{5})'
+    replacement: '[badge number]'
+sensitive_keys:
+  - registration_number
+  - badge_number

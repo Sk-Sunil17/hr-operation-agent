@@ -1,0 +1,26 @@
+segments:
+  - id: site_north
+    label: "North site"
+    match: { entity: harbour_north }
+
+  - id: site_harbourside
+    label: "Harbourside site"
+    match: { entity: harbour_side }
+
+  - id: union_members
+    label: "Covered by the collective agreement"
+    match: { segment_keys: [union_members] }
+    rules:
+      - id: A1
+        mode: hand_over
+        reason: "Record changes for union members are raised with the representative first, so a person owns them."
+    approvals_role_overrides:
+      people_officer: clinical_lead
+
+  - id: bank_staff
+    label: "Bank and agency staff"
+    match: { employment_type: casual }
+    rules:
+      - id: E2
+        mode: hand_over
+        reason: "Bank staff are engaged under separate terms, so anything depending on their circumstances goes to a person."

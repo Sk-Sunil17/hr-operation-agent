@@ -1,0 +1,44 @@
+forms:
+  - id: registration_check
+    label: "Professional registration check"
+    version: "2026-02"
+    detect: ["professional registration check", "registration check"]
+    expires_after_months: 12
+    fields:
+      - { id: full_name,    label: "Full name",            aliases: ["name"] }
+      - { id: registration, label: "Registration number",  aliases: ["reg no", "registration"] }
+      - { id: expires,      label: "Registration expires", aliases: ["expiry", "valid until"] }
+      - { id: checked_by,   label: "Checked by",           aliases: ["verified by"] }
+
+  - id: reference_pack
+    label: "Clinical reference pack"
+    version: "2025-11"
+    detect: ["clinical reference pack", "reference pack"]
+    fields:
+      - { id: full_name,  label: "Full name",       aliases: ["name"] }
+      - { id: referee_one, label: "First referee",  aliases: ["referee 1"] }
+      - { id: referee_two, label: "Second referee", aliases: ["referee 2"] }
+
+  - id: right_to_work
+    label: "Right to work check"
+    version: "2025-01"
+    detect: ["right to work"]
+    expires_after_months: 36
+    fields:
+      - { id: full_name,     label: "Full name",     aliases: ["name"] }
+      - { id: document_seen, label: "Document seen", aliases: ["evidence"] }
+      - { id: checked_by,    label: "Checked by",    aliases: ["verified by"] }
+
+  - id: leaver_form
+    label: "Leaver form"
+    version: "2024-05"
+    detect: ["leaver form"]
+    fields:
+      - { id: full_name, label: "Full name", aliases: ["name"] }
+      - { id: last_day,  label: "Last shift", aliases: ["last day", "final shift"] }
+
+  - id: occupational_health
+    label: "Occupational health report"
+    version: "any"
+    detect: ["occupational health", "fit note", "medical certificate"]
+    restricted: true

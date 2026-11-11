@@ -1,0 +1,25 @@
+# Meridian checks more, and treats more of it as blocking.
+items:
+  - id: appointment_letter
+    label: "Signed letter of appointment"
+    document: appointment_letter
+    blocking: true
+
+  - id: right_to_work
+    label: "Right to work verification complete"
+    document: right_to_work
+    blocking: true
+
+  - id: bank_details
+    label: "Bank details lodged with payroll"
+    field: bank_details
+    blocking: true
+
+  - id: emergency_contact
+    label: "Emergency contact recorded"
+    field: emergency_contact
+    blocking: true
+
+  - id: phone
+    label: "Contact number on file"
+    field: phone

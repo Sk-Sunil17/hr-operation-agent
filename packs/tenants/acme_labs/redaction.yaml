@@ -1,0 +1,11 @@
+# The only place a local identifier format is ever named. Acme's payroll
+# references look like "PR-123456"; without this they would survive redaction.
+
+id: acme
+patterns:
+  - name: acme_payroll_reference
+    class: member_number
+    regex: '\bPR-\d{6}\b'
+    replacement: '[payroll reference]'
+sensitive_keys:
+  - payroll_reference

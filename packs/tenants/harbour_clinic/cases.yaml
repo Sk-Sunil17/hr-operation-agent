@@ -1,0 +1,5 @@
+cases:
+  - id: union_consultation
+    label: "Union consultation"
+    intent: enquiry
+    description: "A matter that must be raised with the union representative before anything is decided."

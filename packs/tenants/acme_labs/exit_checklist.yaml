@@ -1,0 +1,14 @@
+# What happens when somebody leaves Acme Labs.
+#
+# Most of these are things a person does. The agent reports the list against an
+# exit case a person opened, and does none of them. Nothing here revokes
+# access: no tool in this system can, deliberately.
+
+items:
+  - { id: handover,        label: "Handover notes written and shared",      owner_role: hr_partner }
+  - { id: manager_1to1,    label: "Final conversation with their manager",  owner_role: hr_partner }
+  - { id: equipment,       label: "Laptop and monitor returned",            owner_role: hr_partner }
+  - { id: leaver_form,     label: "Leaver form returned",                   owner_role: hr_partner, document: leaver_form }
+  - { id: final_pay,       label: "Final pay and untaken leave confirmed",  owner_role: hr_lead }
+  - { id: access_removed,  label: "Accounts closed by IT",                  owner_role: hr_lead, before_last_day: false }
+  - { id: exit_interview,  label: "Exit interview offered",                 owner_role: hr_partner, before_last_day: false }

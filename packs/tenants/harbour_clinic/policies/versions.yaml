@@ -1,0 +1,21 @@
+policies:
+  - id: HC-LEAVE
+    title: Leave and Time Off
+    owner_role: practice_manager
+    review_months: 12
+    versions:
+      - { version: "4", status: in_force, effective_from: "2026-01-01", file: leave-v4.md }
+
+  - id: HC-CONDUCT
+    title: Standards of Conduct
+    owner_role: people_officer
+    review_months: 24
+    versions:
+      - { version: "2", status: in_force, effective_from: "2025-03-01", file: conduct-v2.md }
+
+  - id: HC-START
+    title: Starting at Harbour Clinic
+    owner_role: people_officer
+    review_months: 12
+    versions:
+      - { version: "3", status: in_force, effective_from: "2026-06-01", file: onboarding-v3.md }

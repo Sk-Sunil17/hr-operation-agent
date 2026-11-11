@@ -1,0 +1,8 @@
+# One case type the base pack does not have: this company has a works council
+# and some matters must be recorded as consultation rather than HR casework.
+
+cases:
+  - id: works_council
+    label: "Works council consultation"
+    intent: enquiry
+    description: "A matter that must be recorded for employee representative consultation before anything is decided."

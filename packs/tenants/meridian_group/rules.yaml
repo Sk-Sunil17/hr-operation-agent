@@ -1,0 +1,20 @@
+# Meridian's tightenings. Each one may only move a rule to a MORE restrictive
+# mode, or add a citation requirement. The loader refuses the reverse.
+
+rules:
+  - id: E1
+    mode: prepare
+    reason: "Group policy is that no answer reaches an employee without a person approving it first, however routine."
+
+  - id: S1
+    mode: prepare
+    reason: "Even a status update is reviewed here, because status has been read as a commitment in the past."
+
+  - id: E4
+    needs_citation: true
+    reason: "An unclear request still goes to a person with the governing policy attached, so the reviewer is not guessing."
+
+  # Same mode as the base pack, but this company states its own reason, which is
+  # what an employee and an auditor actually read.
+  - id: D4
+    reason: "Filing a document is confirmed by a person in every entity, with no exception for complete forms."

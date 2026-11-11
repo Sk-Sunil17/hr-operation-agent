@@ -1,0 +1,34 @@
+# Acme Labs: ~60 people, one entity, flat structure, two approvers, Slack-first.
+# Runs close to the base ceiling: this company is comfortable with the agent
+# answering routine policy questions on its own.
+
+id: acme_labs
+name: Acme Labs
+extends: base
+channels: [web, slack]
+tone: warm
+
+sla:
+  acknowledge_minutes: 5
+  answer_hours: 8
+  restricted_acknowledge_minutes: 2
+  reminder_cap: 2
+  reminder_interval_hours: 48
+
+escalation:
+  restricted_role: hr_lead
+  verification_failure_role: hr_partner
+  default_role: hr_partner
+
+redaction_packs: [generic]
+
+models:
+  provider: "null"          # templates and retrieval only; no model is called at all
+  train_on_tenant_data: false
+
+metrics:
+  baseline_minutes_per_case: 12      # this company's own estimate, not ours
+  review_minutes_per_queued_case: 3
+  small_sample_below: 30
+
+jurisdiction_packs: []       # none, by design

@@ -1,0 +1,39 @@
+adapters:
+  - name: staff_records
+    kind: hris
+    implementation: mock_hris
+    owns_fields: [preferred_name, personal_email, phone, home_address, emergency_contact]
+    operations: [read_person, read_manager, read_record, prepare_record_change, commit_record_change]
+    settings: { seed: harbour }
+
+  - name: payroll
+    kind: hris
+    implementation: mock_hris
+    owns_fields: [bank_details]
+    operations: [read_person, read_record, prepare_record_change, commit_record_change]
+    settings: { seed: harbour_pay }
+
+  - name: rota
+    kind: calendar
+    implementation: mock_calendar
+    operations: [free_busy, prepare_invite, commit_invite, prepare_cancel, commit_cancel]
+    settings: { buffer_minutes: 30 }
+
+  - name: clinical_records
+    kind: docstore
+    implementation: mock_docstore
+    operations: [read_document, prepare_file, commit_file]
+
+  - name: email_out
+    kind: notify
+    implementation: mock_notify
+    operations: [prepare_message, commit_message]
+    settings: { default_channel: "people@harbour.test" }
+
+  - name: candidate_email
+    kind: notify
+    implementation: mock_mail
+    operations: [prepare_message, commit_message]
+    settings:
+      from_address: "recruitment@harbour.test"
+      reply_to: "people@harbour.test"

@@ -1,0 +1,30 @@
+# Two people can approve anything. Flat company, short chains.
+
+roles:
+  employee: Employee
+  hr_partner: HR Partner
+  hr_lead: Head of People
+
+matrix:
+  - when: { mode: prepare, intent: enquiry }
+    role: hr_partner
+
+  - when: { mode: prepare, intent: admin }
+    role: hr_partner
+
+  - when: { mode: prepare, intent: document }
+    role: hr_partner
+
+  - when: { mode: prepare, intent: [onboarding, offboarding] }
+    role: hr_partner
+
+  - when: { mode: prepare, intent: interview }
+    role: hr_partner
+
+delegation:
+  hr_partner: [hr_lead]
+
+# Roles that may act on another person's record.
+hr_roles:
+  - hr_partner
+  - hr_lead

@@ -1,0 +1,16 @@
+# Meridian's local formats. Different company, different identifiers, same
+# generic classes underneath.
+
+id: meridian
+patterns:
+  - name: meridian_employee_number
+    class: member_number
+    regex: '\bMG[0-9]{7}\b'
+    replacement: '[employee number]'
+  - name: meridian_staff_id_keyed
+    class: national_id
+    regex: '(?i)\bstaff\s*(?:id|pass)\s*[:#-]?\s*([A-Z]\d{7}[A-Z])'
+    replacement: '[staff id]'
+sensitive_keys:
+  - staff_pass_id
+  - works_council_reference

@@ -1,0 +1,36 @@
+# Different role names entirely. Nothing in the kernel knows what any of these
+# words mean; this file is where they get their meaning.
+
+roles:
+  staff: Staff member
+  charge_nurse: Charge Nurse
+  practice_manager: Practice Manager
+  people_officer: People Officer
+  clinical_lead: Clinical Lead
+
+matrix:
+  - when: { mode: prepare, intent: enquiry }
+    role: practice_manager
+  - when: { mode: prepare, intent: admin }
+    role: people_officer
+    then_role: practice_manager
+  - when: { mode: prepare, intent: document }
+    role: people_officer
+  - when: { mode: prepare, intent: [onboarding, offboarding] }
+    role: people_officer
+    then_role: clinical_lead
+  - when: { mode: prepare, intent: interview }
+    role: practice_manager
+  - when: { mode: prepare, intent: status }
+    role: practice_manager
+  - when: { mode: prepare, intent: job }
+    role: people_officer
+
+delegation:
+  practice_manager: [clinical_lead]
+  people_officer: [practice_manager]
+
+hr_roles:
+  - people_officer
+  - practice_manager
+  - clinical_lead

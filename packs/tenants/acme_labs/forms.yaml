@@ -1,0 +1,66 @@
+# The forms this company actually receives.
+#
+# `restricted: true` means the type is never read. That is a property of the
+# kind of document, not of its contents -- deciding it by reading means reading.
+
+forms:
+  - id: new_starter
+    label: "New starter form"
+    version: "2026-01"
+    detect: ["new starter form", "starter details form", "new joiner form"]
+    expires_after_months: null
+    fields:
+      - { id: full_name,         label: "Full name",         aliases: ["name", "legal name"] }
+      - { id: start_date,        label: "Start date",        aliases: ["first day", "commencement date"] }
+      - { id: personal_email,    label: "Personal email",    aliases: ["email", "email address"] }
+      - { id: phone,             label: "Phone",             aliases: ["mobile", "contact number", "telephone"] }
+      - { id: emergency_contact, label: "Emergency contact", aliases: ["next of kin", "in case of emergency"] }
+      - { id: bank_details,      label: "Bank details",      aliases: ["account details", "payroll details"] }
+      - { id: dietary,           label: "Dietary requirements", aliases: ["dietary"], required: false }
+
+  - id: contract
+    label: "Signed contract"
+    version: "2026-01"
+    detect: ["signed contract", "contract of employment", "employment contract"]
+    fields:
+      - { id: full_name,  label: "Full name",  aliases: ["name", "employee name"] }
+      - { id: signed_on,  label: "Signed on",  aliases: ["date signed", "signature date"] }
+      - { id: start_date, label: "Start date", aliases: ["commencement date"] }
+
+  - id: right_to_work
+    label: "Right to work check"
+    version: "2025-06"
+    detect: ["right to work", "work eligibility"]
+    expires_after_months: 24
+    fields:
+      - { id: full_name,    label: "Full name",    aliases: ["name"] }
+      - { id: document_seen, label: "Document seen", aliases: ["evidence", "document type"] }
+      - { id: checked_by,   label: "Checked by",   aliases: ["verified by"] }
+      - { id: check_date,   label: "Check date",   aliases: ["date checked", "date"] }
+
+  - id: medical_certificate
+    label: "Medical certificate"
+    version: "any"
+    detect: ["medical certificate", "fit note", "sick note", "doctor's note"]
+    restricted: true          # never read, never extracted, never summarised
+
+  - id: flexible_request
+    label: "Flexible working request"
+    version: "2026-07"
+    detect: ["flexible working request", "request to change my working pattern"]
+    fields:
+      - { id: full_name,     label: "Full name",     aliases: ["name"] }
+      - { id: current_hours, label: "Current hours", aliases: ["current pattern"] }
+      - { id: proposed,      label: "Proposed change", aliases: ["requested pattern", "proposed pattern"] }
+      - { id: start_from,    label: "Start from",    aliases: ["effective from"] }
+      - { id: reason,        label: "Reason",        aliases: [], required: false }
+
+  - id: leaver_form
+    label: "Leaver form"
+    version: "2025-09"
+    detect: ["leaver form", "leaver details"]
+    fields:
+      - { id: full_name,    label: "Full name",    aliases: ["name"] }
+      - { id: last_day,     label: "Last day",     aliases: ["final day", "leaving date"] }
+      - { id: forwarding,   label: "Forwarding address", aliases: ["forwarding"], required: false }
+      - { id: equipment,    label: "Equipment returned", aliases: ["equipment"] }

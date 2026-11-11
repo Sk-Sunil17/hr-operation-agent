@@ -1,0 +1,970 @@
+===============================================================================
+ HR OPERATIONS AGENT — LEARN IT, THEN TEACH IT
+===============================================================================
+
+ Written to be read top to bottom, once, before you present anything.
+
+ Part A tells you what the thing IS.
+ Part B tells you HOW it works, deep enough to answer questions.
+ Part C is the demo, keystroke by keystroke.
+ Part D is the hard questions, the things not to say, and what is NOT built.
+
+ Every number in this file was measured on 11 November 2026, not estimated.
+ Where something is unfinished or weak, it says so. You will be believed far
+ more for knowing the limits than for knowing the features.
+
+ Verified state at the time of writing:
+   416 automated tests pass (1 skipped deliberately)
+   3 companies, all validating clean
+   52 of the companies' own acceptance cases, all reaching their expected rule
+   38 of 38 live end-to-end feature checks passed
+   Audit chain intact: 338 rows across 3 companies
+
+
+===============================================================================
+ PART A — WHAT IT IS
+===============================================================================
+
+A1. ONE PARAGRAPH
+-----------------
+
+An HR operations agent that handles the routine back-office work of a people
+team — answering policy questions, processing forms, updating records,
+scheduling interviews, checking new starters are ready — and which is built so
+that it CANNOT send an answer it cannot prove, and CANNOT change a real system
+without a named person approving it first. Every company that uses it
+configures it with its own files, and can only ever make it stricter.
+
+
+A2. THE TWO SENTENCES THAT DEFINE IT
+------------------------------------
+
+  1. It cannot send a claim it cannot cite to a policy version in force today.
+  2. Everything a company differs on is configuration, not code.
+
+Everything else in this document is a consequence of those two.
+
+
+A3. WHY THAT MATTERS (the commercial argument)
+----------------------------------------------
+
+Every HR AI tool on the market is built to ANSWER. The whole design is "reduce
+tickets". In HR that is the wrong objective, because a confident wrong answer
+is not a bad user experience — it is a legal event. Tell someone they are
+entitled to leave they are not entitled to, and the company is bound by it.
+
+So this is built the other way round: it starts from what it is NOT allowed to
+do, and the ability to answer is what is left over. That is why it has four
+possible outcomes instead of one.
+
+
+A4. THE FOUR OUTCOMES
+---------------------
+
+  auto       answer it now, on its own
+  prepare    draft it, show a preview, wait for a person to approve
+  hand_over  a person takes it; the requester is told, warmly and immediately
+  refuse     decline it, say why, and offer the next step
+
+A rule decides which. Not the AI. The rule reads facts that came from systems,
+never from the wording of the message.
+
+
+A5. THE FIVE FEATURE AREAS
+--------------------------
+
+These are the five things to be able to demonstrate. All five were verified
+working end to end on all three companies.
+
+  1. EMPLOYEE ENQUIRIES
+     Policy and entitlement questions. Routine ones are answered directly by
+     quoting the policy verbatim with version and section. Personal ones wait
+     for a person. Sensitive ones are never answered at all.
+
+  2. DOCUMENT PROCESSING
+     Forms arriving. Read against the company's own form templates, every field
+     read back for a person to confirm. Incomplete forms name exactly what is
+     missing. Sensitive document types are never read. Unrecognised documents
+     are not guessed at.
+
+  3. POLICY LOOKUP
+     A versioned, effective-dated policy library. Only the version in force
+     today can be quoted. Retired and draft versions are excluded. If two
+     versions claim the same day, it refuses to answer rather than pick one.
+
+  4. INTERVIEW SCHEDULING
+     Reads the panel's free/busy, applies the company's notice period, buffer
+     and daily limits, proposes times, and prepares the calendar hold, the
+     candidate's email (with a real .ics attached) and the panel's brief. One
+     approval commits all three. Also handles rescheduling and cancellation.
+
+  5. HR ADMINISTRATION
+     Changes to records the company holds — address, phone, emergency contact.
+     Prepared with a before/after preview, committed only on approval. Plus
+     onboarding readiness checks and offboarding checklists.
+
+  A hard line that cuts across all five: no tool in this system can write pay
+  or grant access. That is checked when a company's config loads AND again at
+  runtime, because a guarantee worth having is worth checking twice.
+
+
+===============================================================================
+ PART B — HOW IT WORKS
+===============================================================================
+
+B1. THE LOOP
+------------
+
+Every request, from any channel, goes through the same eight stages in the same
+order. The dashboard draws them as seven numbered circles across the top.
+
+   receive -> understand -> retrieve -> decide -> draft -> verify -> act -> audit
+
+Three things about that order are deliberate, and they are the whole design:
+
+  * The raw message is STORED BEFORE anything looks at it. A crash loses
+    nothing; a message delivered twice is recognised and not acted on twice.
+
+  * The policy search happens BEFORE the decision, because "is there a policy
+    in force covering this" is a fact the rules need to test. That search is
+    read-only by construction — it cannot write, send or change anything.
+
+  * The verify gate sits BETWEEN the draft and every commit. If it fails, the
+    request escalates to a named person. It never degrades into sending.
+
+
+B2. THE RULE ENGINE — 30 RULES, FIRST MATCH WINS
+------------------------------------------------
+
+The rules live in a plain-English config file. They are read top to bottom and
+the first one that matches wins, so the ORDER is part of the meaning. The last
+rule matches everything, so the agent can never fall off the end of the list.
+
+Here is the whole thing. You do not need to memorise it; you need to know it
+exists and is readable, because showing it is more persuasive than describing
+it.
+
+  STOP CONDITIONS
+   T1  hand_over  A person has taken this matter over, so the agent stops.
+   R1  hand_over  A restricted matter goes straight to a named person.
+   P1  refuse     Publishing or retiring a policy is a person's decision.
+   W1  refuse     Asks about another person's record without standing to.
+
+  ENQUIRIES
+   E0  hand_over  Two versions in force — nobody is answered until that is fixed.
+   E4  prepare    Too unclear to act on; a person gets a question they can send.
+   E1  auto       Routine question, one version in force -> answer, quoting it.
+   E2  prepare    Depends on this person's circumstances -> a person confirms.
+   E3  hand_over  No policy covers it -> a person answers, not the agent.
+
+  RECORD CHANGES
+   A2  refuse     No configured system owns the field this would change.
+   A1  prepare    Own record: prepared with a preview, committed on approval.
+   A3  prepare    A manager, for a direct report.
+   A4  prepare    Someone in HR, for anyone — a second person still approves.
+
+  DOCUMENTS
+   D0  hand_over  Message claims an attachment and none arrived.
+   D1  hand_over  Restricted type -> files nothing, extracts nothing.
+   D2  hand_over  Unrecognised -> a person decides what it is.
+   D3  prepare    Incomplete -> names exactly what is missing, chases nobody.
+   D4  prepare    Complete -> a person confirms the reading before filing.
+
+  JOINING AND LEAVING
+   O1  prepare    Readiness check: reports gaps, closes none of them.
+   O2  refuse     Start date too far away to say anything useful yet.
+   X1  refuse     An exit is started by a person, never by the agent.
+   X2  prepare    Departure checklist, for the case owner to act on.
+
+  SCHEDULING AND STATUS
+   I0  hand_over  No calendar connected -> it does not guess availability.
+   I4  prepare    Cancelling withdraws a commitment to a candidate.
+   I2  prepare    Rescheduling takes back a time already given.
+   I3  prepare    No time fits the company's limits -> a person picks what to relax.
+   I1  prepare    Scheduling puts time in other people's calendars.
+   S1  auto       Telling someone the state of their own request.
+   J1  prepare    A scheduled job reports and changes nothing on its own.
+
+  CATCH-ALL
+   Z1  hand_over  Nothing matched -> a person decides what this is.
+
+
+B3. THE GUARANTEE THAT MAKES IT SAFE TO SELL
+--------------------------------------------
+
+A company may move any rule to a MORE restrictive mode. It may add a citation
+requirement. It can never do the reverse.
+
+This is not a policy or a warning. The software REFUSES TO START. If a
+customer edits their config to let the agent answer something the base rules
+say needs a person, the loader raises an error and nothing boots.
+
+Which means: no customer setting, and no instruction smuggled into a document
+or an email, can unlock a send that needs a human. Say that sentence slowly in
+a demo. It is the most valuable thing in the product.
+
+
+B4. THE VERIFY GATE — 12 CHECKS
+-------------------------------
+
+The last thing between a draft and the world. Every check returns pass, fail or
+skip WITH A REASON, and the whole list is stored on the decision and drawn in
+the UI. A failure escalates; it never becomes a send.
+
+The checks are deliberately mechanical — "do the exact words of the policy it
+claims to quote appear in the reply" is a string comparison. A gate you can
+reason about is a gate you can trust.
+
+   1  A policy is cited                        (when the rule requires one)
+   2  The cited words appear in the reply       verbatim, not paraphrased
+   3  One version per policy                    never mixes two versions
+   4  The cited version is still in force       re-checked, not assumed
+   5  No claim about this person's entitlement  it says what the POLICY says
+   6  No legal, medical or financial advice     never, in any mode
+   7  A restricted matter was not answered
+   8  The reply says something                  not an empty non-answer
+   9  No identifier the person did not supply   echo vs leak, see below
+  10  Every action has an idempotency key       so a retry cannot act twice
+  11  Nothing acted before approval
+  12  No two actions share a key
+
+Check 9 is worth understanding because it is subtle. An identifier the person
+typed themselves, repeated back so they can confirm it before it goes into
+their own record, is an ECHO and is fine. One they did NOT supply came out of a
+record and is LEAVING — that is a leak, and it fails.
+
+
+B5. NOTHING REACHES THE WORLD EXCEPT THROUGH THREE VERBS
+--------------------------------------------------------
+
+Every connected system — HR system, calendar, document store, email, service
+desk, e-signature — is reached through an adapter that supports exactly three
+operations:
+
+  read      no side effects, ever
+  prepare   writes a plan and a human-readable preview, and nothing else
+  commit    acts exactly once, under an idempotency key
+
+A second commit with the same key returns the first receipt instead of acting
+again. So a retry, a double-click and a replayed webhook are all harmless.
+
+Each adapter declares in the config which fields it owns. The agent refuses
+anything else. And nothing, on any path, including behind an approval, can
+write pay or grant access.
+
+
+B6. THE APPROVAL QUEUE — THREE GUARDS
+-------------------------------------
+
+  1. You cannot approve your own request. This applies to HR too.
+  2. You cannot approve something assigned to a role you do not hold —
+     unless the company's config says your role deputises for it.
+  3. The policy the draft quoted is RE-CHECKED at the moment of approval. If
+     the policy changed overnight, approving is blocked rather than sending
+     stale wording.
+
+Sending something back requires a reason code from a short fixed list, not free
+text. Free text is unreadable in bulk — nobody will ever read a thousand notes,
+so the reason a draft was wrong is lost the moment it is written. A code turns
+every rejection into a labelled error class, and it tells you WHICH part of the
+agent was wrong: retrieval, the facts, the drafting, or the rules themselves.
+
+
+B7. THE AUDIT TRAIL
+-------------------
+
+Append-only and hash-chained per company. Each row's hash covers the row before
+it, so editing or deleting history breaks the chain visibly. There are no
+UPDATE or DELETE statements against the audit table anywhere in the codebase,
+and a test asserts that.
+
+Every decision also records the exact configuration that produced it, as a
+hash. Months later you can prove what the system was told to do at the time.
+
+HONEST LIMITATION, and say it before anyone asks: truncating the END of a chain
+leaves a valid chain. Detecting that needs an external anchor — a published
+head, or an append-only store — which this build does not have yet. The
+dashboard states this limitation on screen rather than hiding it.
+
+
+B8. WHICH AI MODEL IS THIS USING?
+---------------------------------
+
+None. Right now, zero. No model is called at any point.
+
+Replies are templates wrapped around policy text quoted verbatim.
+Classification is regular expressions and the company's own word lists. This is
+a deliberate design choice, not a gap: the whole point is that the answer is
+the policy's exact words, so there is nothing for a model to generate.
+
+The interface for a model exists and is one config line. Where a model is
+turned on, it is bounded by two rules that cannot be configured away:
+
+  * The model may RAISE how sensitive it thinks something is. It may never
+    lower it.
+  * The model is NEVER asked what the agent is allowed to do. That is the rule
+    engine's job, and it reads facts, not prose.
+
+Templates-and-retrieval must always remain a working mode. That is the floor.
+
+
+B9. WHAT IS ACTUALLY BUILT (code size)
+--------------------------------------
+
+  Python kernel      10,733 lines across 28 files
+  Tests               4,230 lines across 17 files (416 tests)
+  Dashboard           3,394 lines (React + Vite, 10 screens)
+  Company packs          63 files across 3 companies
+  Database               25 tables
+
+The main modules, so you can answer "where does X live":
+
+  kernel.py       the loop; this IS the agent
+  engine.py       the rule engine; the only thing that decides autonomy
+  verify.py       the 12-check gate
+  policy.py       the versioned corpus and the read-only search
+  interviews.py   interview parsing, the slot solver, persistence
+  forms.py        reading a form against a company's templates
+  tools.py        the adapters, and the prepare/commit machinery
+  approvals.py    the queue and its three guards
+  audit.py        the hash chain
+  scheduler.py    the nightly checks
+  packs/          loading a company's config and layering it
+
+
+===============================================================================
+ PART C — THE DEMO
+===============================================================================
+
+C1. BEFORE YOU START — SETUP
+----------------------------
+
+Run these in order. Do not skip any; they reset the data so the numbers make
+sense and no screen you click is empty.
+
+  TERMINAL 1:
+    cd ~/Desktop/hr_operation_agent
+    python3 -m hr_agent.cli init
+    python3 -m hr_agent.cli demo acme_labs --reset
+    python3 -m hr_agent.cli demo meridian_group --reset
+    python3 -m hr_agent.cli demo harbour_clinic --reset
+    python3 -m hr_agent.cli serve
+
+  Leave that running. It prints "API on http://127.0.0.1:4000".
+
+  `init` creates the database and loads all three companies' config. The three
+  `demo` lines seed a morning of realistic traffic for each, including one
+  interview already booked and several things waiting for approval.
+
+  TERMINAL 2:
+    cd ~/Desktop/hr_operation_agent/client
+    npm run dev
+
+  If it complains about Node: run `nvm use 22` first, then `npm run dev` again.
+
+  BROWSER: http://localhost:5173
+
+  ONE MORE STEP, DO NOT SKIP: top right, change "Acting as" to MAYA IYER. You
+  start the demo as an ordinary employee and become HR later.
+
+
+C2. PRE-FLIGHT CHECK
+--------------------
+
+  [ ] Top left says "Acme Labs"
+  [ ] "Acting as" says "Maya Iyer"
+  [ ] Approvals tab shows EIGHT items waiting, and NO gold number
+  [ ] Interviews tab shows ONE booked interview
+  [ ] You are on the Ask tab
+
+The missing gold number is CORRECT, not a fault. The badge counts items YOU may
+decide, and Maya is an ordinary employee who may decide nothing. Switch to Hana
+Suzuki and a gold 5 appears; switch to Joel Asante and it is 8, because Head of
+People deputises for HR Partner.
+
+If you want a one-sentence version of the whole product, that is it. Know this
+before somebody asks why the number moved.
+
+If the screen says "The agent is not answering", Terminal 1 has stopped.
+
+
+C3. MOMENT 1 — IT ANSWERS, AND SHOWS ITS WORKING        (90 seconds)
+--------------------------------------------------------------------
+
+SAY: "This is an HR assistant. I'll show you something simple, then the thing
+      that actually matters."
+
+DO:  On the Ask tab, click the first test case on the left —
+     "How many days of annual leave do I get in a year?" — then click Run it.
+
+POINT AT the dark bar of seven numbered circles across the top.
+
+SAY: "That is everything it did, in order. Received the question, worked out
+      what it was about, looked for a policy, a rule decided what it was
+      allowed to do, it wrote a reply, it checked the reply, it sent it."
+
+POINT AT the green box with the reply.
+
+SAY: "Notice what the answer IS. Not the assistant's opinion — the actual words
+      of the leave policy, with the version number and the section. If somebody
+      argues about this answer in six months, we can show exactly where it came
+      from."
+
+SCROLL DOWN to "The verify gate".
+
+SAY: "And before it sent anything, twelve checks ran. One checks that the
+      policy it claims to quote is genuinely in the reply, word for word.
+      Another checks it has not told the person what THEY personally get —
+      because it cannot verify that, so it is not allowed to say it."
+
+  Expected: rule E1, mode auto, 2 citations, 12 checks, all green.
+
+
+C4. MOMENT 2 — IT REFUSES, AND THAT IS THE PRODUCT      (2 min — THE important one)
+-----------------------------------------------------------------------------------
+
+SAY: "Now the one that matters. This is what the rest of the market gets wrong."
+
+DO:  Clear the box. Type or paste:
+
+       My manager keeps making comments about my accent in front of the team
+       and I dread meetings now.
+
+     Click Run it. THEN PAUSE. Let them read it before you say anything.
+
+SAY: "It did not answer. It did not look up the grievance policy. It did not
+      summarise what he said, it did not form a view about whether it sounds
+      serious, and it did not ask him a follow-up question — because making a
+      distressed person explain themselves to a machine is its own small
+      cruelty."
+
+POINT AT the reply.
+
+SAY: "What it did, in under a second, was acknowledge him warmly, tell him a
+      named human has it, and say explicitly: I have not recorded any view
+      about this and I will not be answering it. That text is FIXED. It is not
+      generated. We would not want it generated even with the best AI
+      available."
+
+POINT AT the third circle — "Find policy" — which is dashed, not filled.
+
+SAY: "See that step is greyed out? It never even looked for a policy. The rule
+      fires before retrieval happens."
+
+THE LINE TO LAND:
+
+SAY: "Every HR AI tool is built to answer. None of them are built to refuse. In
+      HR, a confident wrong answer is not a bad user experience — it is a legal
+      event."
+
+  Expected: rule R1, mode hand_over, ZERO citations, no 'retrieve' step, a
+  sensitive-matter case opened.
+
+
+C5. MOMENT 3 — NOTHING HAPPENS WITHOUT A HUMAN          (2 minutes)
+-------------------------------------------------------------------
+
+SAY: "Third thing. What happens when it needs to actually change something."
+
+DO:  Clear the box. Type:
+
+       I have moved. Please update my home address to 12 Oakfield Road,
+       Bristol BS6 7JQ.
+
+     Click Run it.
+
+** SAY THE ADDRESS OUT LOUD AS YOU TYPE IT. THIS MATTERS. **
+The agent will not invent a value. If you only say "I have moved", it
+identifies the field and the system correctly and then tells you it cannot
+prepare a change because you never said what to change it to. That is
+deliberate — guessing what belongs in somebody's record is worse than asking —
+but it means this moment needs the address in the message.
+
+POINT AT the yellow box.
+
+SAY: "It knows which system holds the address. It has permission to call it. It
+      did not. It wrote down exactly what it WOULD do — old value, new value —
+      and stopped. The record right now is unchanged."
+
+DO:  Top right, change "Acting as" from Maya Iyer to HANA SUZUKI — HR PARTNER.
+     Then click the Approvals tab.
+
+SAY: "I have just stopped being the employee and become the HR partner. Maya
+      cannot approve her own request — the system will not let her. So somebody
+      else has to."
+
+DO:  In the left list, click the item reading "A change to a real record is
+     prepared..." (rule A1). Scroll down, click Approve and send.
+
+POINT AT the green banner.
+
+SAY: "Now it is committed — once, under a unique key, so a double-click or a
+      retry cannot do it twice."
+
+ONE EXTRA BEAT IF YOU WANT IT:
+
+SAY: "There are three guards here. You cannot approve your own request — I had
+      to switch person to do this. You cannot approve something assigned to a
+      role you do not hold. And the policy the draft quoted gets re-checked at
+      the moment of approval, so if the policy changed overnight, approving is
+      blocked rather than sending stale wording."
+
+  Expected: rule A1, mode prepare, a before/after preview showing the real
+  address, and after approval the record actually changes.
+
+
+C6. MOMENT 3b — IT DOES THE WORK, NOT JUST THE TALKING  (2 minutes)
+-------------------------------------------------------------------
+
+This is the answer to "isn't this just a chatbot". Do it while you are still
+the HR partner.
+
+SAY: "Everything so far has been about answering. This is the part that is
+      actually somebody's Tuesday afternoon."
+
+DO:  Back to the Ask tab. You are still Hana Suzuki. Type:
+
+       Please arrange a technical interview with Astrid Lindqvist
+       (astrid.l@example.test) for the Head of Finance role, with Priya and Sam.
+
+     Click Run it.
+
+WALK DOWN THE REPLY SLOWLY. FOUR THINGS.
+
+SAY: "One. It read three calendars across four working days. It did not ask
+      anyone when they were free — it looked."
+
+SAY: "Two. It proposed a time, and two alternatives. And it tells me the day it
+      ruled out and why: that one was inside the twenty-four hours' notice this
+      company has decided a candidate gets. That number is in Acme's config
+      file. Harbour Clinic's is seventy-two."
+
+SAY: "Three — and if you only look at one thing, look at this. It lists what
+      approving would DO. Put it in the calendar. Email the candidate, with a
+      real calendar invitation attached. Brief the panel. Three separate
+      things, one decision."
+
+SAY: "Four. Nothing has happened. The candidate has not been emailed. Nobody's
+      calendar has changed."
+
+DO:  Switch "Acting as" to JOEL ASANTE — HEAD OF PEOPLE. Go to Approvals and
+     approve the interview.
+
+SAY: "Same guard as before, and notice it applies to HR too. Hana asked for
+      this, so Hana cannot approve it. Joel can, because the config says Head
+      of People deputises for HR Partner."
+
+DO:  Click the Interviews tab.
+
+SAY: "Now it exists. That one click booked the calendar entry and sent the
+      candidate their invitation — together. We deliberately did not split that
+      approval, because 'booked, but nobody told the candidate' is the worst
+      possible outcome and we did not want it to be reachable."
+
+POINT AT the left-hand panel.
+
+SAY: "And every number the scheduler obeyed is on screen: notice, buffer, how
+      many interviews one person can be asked to do in a day. None of that is
+      in our code. It is in this company's configuration file, and the three
+      companies shipped here disagree on every one of them."
+
+IF ASKED "is that a real calendar?" — this is the honest answer and it lands
+better than hedging:
+
+SAY: "In this demo it is a mock, so nothing leaves the room. There is a real
+      Google Calendar and Gmail connector in the box, behind the same adapter
+      interface — swapping to it is one config file and three environment
+      variables. The kernel, the rules and the approval queue do not change at
+      all."
+
+  Expected: rule I1, mode prepare, 5 prepared actions, and after Joel approves,
+  4 committed and the interview appears on the Interviews tab.
+
+
+C7. MOMENT 3c — THE FORMS, WHERE HR'S HOURS ACTUALLY GO  (2 minutes)
+--------------------------------------------------------------------
+
+If you are short of time, this is the one to cut. But it is the moment an HR
+audience recognises their own job in.
+
+SAY: "Last one on the doing side. Everything so far was somebody typing a
+      sentence. Most of HR's week is paperwork arriving."
+
+DO:  On the Ask tab, in the test cases on the left, click "Here is my completed
+     new starter form." — the one tagged "with a document". It fills in both the
+     message AND the form itself. Click Run it.
+
+POINT AT the read-back in the reply.
+
+SAY: "It read the form against this company's own template — the fields, and
+      the names people actually write for them. It reads every value back so a
+      person can check the reading, not just trust it."
+
+POINT AT the bank details line. THIS IS THE BEAT.
+
+SAY: "Look at that one. 'Bank details: filled in, not repeated here.' It
+      confirms the field was completed without copying somebody's account
+      number into a message. An approver does not need to see it to know the
+      form was filled in — they can open the document."
+
+DO:  Now delete one line from the form — the Emergency contact line — and click
+     Run it again.
+
+SAY: "Same form, one field missing. It names exactly what is missing, files
+      nothing, and chases nobody. A person decides whether to ask for it and
+      from whom."
+
+IF YOU HAVE THIRTY MORE SECONDS: click "Here is my medical certificate from the
+doctor."
+
+SAY: "And this one it refuses to read at all. A medical certificate is
+      restricted by TYPE, not by what turns out to be in it — because deciding
+      that by reading it means reading it. Nothing extracted, nothing filed,
+      nothing summarised."
+
+  Expected: D4 complete / D3 incomplete naming the missing field / D1 for the
+  medical certificate with nothing extracted.
+
+
+C8. MOMENT 4 — SAME SOFTWARE, A DIFFERENT COMPANY       (2 minutes)
+-------------------------------------------------------------------
+
+This is your commercial argument. Slow down here.
+
+SAY: "Last thing, and this is the one that matters if you are selling this to
+      more than one company."
+
+DO:  Top right, change Company from Acme Labs to MERIDIAN GROUP.
+
+SAY: "Different company. Two and a half thousand people, three legal entities,
+      a works council, much more cautious."
+
+  CAREFUL — KNOW THIS BEFORE YOU SAY IT. The pack DESCRIBES a 2,500-person
+  company, but the directory shipped here is a 14-person sample. If anyone
+  clicks the "Acting as" list they will count 14. Say it first and it is a
+  non-event: "the directory here is a 14-person sample; in a real deployment
+  the people come from the customer's HR system through an adapter, not from
+  this file." The three legal entities and the works council population ARE
+  real in the config, and the Rules tab proves it.
+
+DO:  Ask tab, run the SAME leave question:
+       How many days of annual leave do I get in a year?
+
+POINT AT the result.
+
+SAY: "Same question. Same rule fired — E1. But at Acme it answered on its own,
+      and here it is waiting for a person. Not one line of code is different
+      between these two companies. Meridian's rules file overrides four rules,
+      and the first one says it plainly: no answer reaches an employee without a
+      person approving it first, however routine."
+
+DO:  Click the Rules tab. Point at the gold highlighted row (E1) and the
+     "set by: tenant" column.
+
+SAY: "Every rule is listed, in plain English, with who set it. Gold means this
+      company changed it. And here is the guarantee that makes it safe —"
+
+SAY: "— a company can only make it STRICTER. If a customer edits their config
+      to let the assistant answer something it should not, the software refuses
+      to start. Not a warning. It will not boot. So no customer setting, and no
+      instruction smuggled into a document, can unlock something that needs a
+      human."
+
+THE LINE TO LAND:
+
+SAY: "Onboarding a new company is filling in a config file and getting its
+      tests to pass. It is not a six-month consulting project, which is what it
+      is with every tool in this market today."
+
+  If somebody asks to see the file: packs/tenants/meridian_group/rules.yaml,
+  twenty lines including comments. Showing it helps rather than hurts.
+
+
+C9. MOMENT 5 — CLOSE                                    (30 seconds)
+--------------------------------------------------------------------
+
+DO:  Click the Audit tab.
+
+SAY: "Everything it does is written to a tamper-evident trail. Each row is
+      cryptographically linked to the one before it, so if anyone edits
+      history, it shows. Eighteen months from now, if a tribunal asks what we
+      told an employee on a particular Tuesday, we can produce the message, the
+      rule that fired, the exact policy version quoted, who approved it, and
+      prove none of it was altered."
+
+CLOSE WITH:
+
+SAY: "So — three things. It quotes policy instead of making things up. It
+      refuses when it should, which nothing else in this market does. And every
+      company configures it themselves, with a guarantee they can only make it
+      stricter, never looser."
+
+THEN STOP TALKING. Let them ask.
+
+
+C10. THE THREE COMPANIES — YOUR ADAPTABILITY PROOF
+--------------------------------------------------
+
+Three companies ship with the product, deliberately unlike each other on every
+axis the config format is supposed to absorb. Same code, zero differences.
+
+                        ACME LABS        MERIDIAN GROUP    HARBOUR CLINIC
+  People in directory   9                14                9
+    (sample standing in for)                ~2,500
+  Timezone              Europe/London    Asia/Singapore    America/Halifax
+  Working hours         09:00-17:30      08:30-18:00       07:00-21:00
+  Working days          5                5                 7 (round the clock)
+  Tone                  warm             formal            formal
+  Connected systems     5                8                 6
+  Form templates        6                5                 5
+  Acceptance cases      20               16                16
+
+  INTERVIEW SETTINGS — all configuration, no code
+  Candidate notice      24 hours         48 hours          72 hours
+  Buffer either side    15 min           30 min            30 min
+  Max per interviewer   3 per day        2 per day         2 per day
+
+  HOW MUCH THEY TRUST THE AGENT
+  Rules tightened       none             2 (E1, S1)        4 (E1, E4, D4, S1)
+  Population overlays   none             2                 2
+
+Read that bottom block out loud if the room is technical. Acme runs at the
+base ceiling. Harbour Clinic trusts it least of the three and has tightened
+every rule that could act alone — including refusing to let it even PREPARE a
+filing of clinical paperwork. None of those three positions required a code
+change.
+
+
+===============================================================================
+ PART D — QUESTIONS, TRAPS, AND WHAT IS NOT BUILT
+===============================================================================
+
+D1. QUESTIONS YOU WILL GET
+--------------------------
+
+"Which AI model is this using?"
+  None, right now. Zero. Replies are templates wrapped around policy text
+  quoted word for word, and classification is rules and the company's own word
+  lists. That is deliberate: the answer IS the policy's exact words, so there is
+  nothing to generate. The interface for a model exists and is one config line,
+  and where it is on, the model can only ever raise how sensitive something
+  looks — never lower it, and never decide what the agent is allowed to do.
+
+"What if the AI gets it wrong?"
+  It cannot send an answer it cannot cite to a policy version in force. If it
+  cannot, a person gets it. And nothing touches a real system without somebody
+  clicking approve.
+
+"Can it handle our company's policies?"
+  That is the whole design. Your policies, your rules, your form templates,
+  your roles, your working hours, your approval chains — all configuration.
+  Onboarding is filling in a config file and getting your own acceptance cases
+  to pass.
+
+"Does it connect to our calendar? Google? Outlook?"
+  Google Calendar and Gmail are in the box and work through the same adapter
+  interface everything else uses — swapping to them is one config file and
+  three environment variables, with no change to the kernel, the rules or the
+  approval queue. Outlook is the same shape of job: one adapter that answers
+  "when is this person busy" and "create this event". What you see in the demo
+  is a mock, so nothing leaves this room.
+
+"Could it just book the interview itself and save us the click?"
+  It could, and we deliberately did not. Booking puts an hour in four people's
+  calendars and sends a stranger an invitation — if that is wrong, somebody
+  takes a morning off work for nothing. A company can loosen plenty of things
+  in config, but the base rules set a ceiling it cannot raise, and scheduling
+  is one of the ones pinned to "a person decides".
+
+"Is our data safe? Is it training on it?"
+  No training on customer data, and the setting that would allow it cannot be
+  turned on. Identifiers are redacted before anything is stored in the event log
+  or the audit trail, using a pattern pack the company configures. Every company
+  is isolated at the data layer — there is no query anywhere that can return two
+  companies' rows.
+
+"What about GDPR / the EU AI Act?"
+  The posture is deliberate: it never computes a statutory entitlement. It
+  quotes the company's own policy text or hands over. No leave accrual, no
+  notice period, no holiday arithmetic anywhere in the code. That removes most
+  of the regulatory surface. It also does no hiring decisions, no ranking and
+  no screening, which is the heavily regulated slice.
+
+"Is this production-ready?"
+  The logic is built and tested — 416 automated tests. The systems it connects
+  to are mocks today. Connecting real ones is the next step, and it is adapter
+  work, not kernel work. I would be straight with you: this is pilot-ready, not
+  deploy-tomorrow.
+
+Anything you do not know:
+  "I would have to check that one." Nobody expects you to know everything, and
+  guessing in front of a room is how you lose it.
+
+
+D2. DO NOT SAY THESE THINGS
+---------------------------
+
+Being caught overclaiming loses the room. These are the traps.
+
+  DON'T SAY                       SAY INSTEAD
+  "It's 100% accurate"            "It can't send an answer it can't cite. If it
+                                   can't, a person gets it."
+  "It replaces HR people"         "It handles the routine so people spend time
+                                   on what needs judgement."
+  "It understands employees"      "It classifies requests and quotes policy. It
+                                   doesn't judge anything."
+  "It's fully automated"          "Anything that touches a real system waits
+                                   for a person."
+  "It's AI-powered" (as headline) "It's rules and policy-quoting. AI is
+                                   optional and off right now."
+  "It's ready to deploy tomorrow" "The logic is built and tested. Connecting
+                                   real systems is the next step."
+  "It books interviews for you"   "It proposes a time and prepares the
+                                   invitation. A person approves before
+                                   anything is booked or emailed."
+  "It screens candidates"         "It never ranks, screens or assesses anybody.
+                                   It finds a time and writes the invitation."
+
+
+D3. WHAT IS NOT BUILT — KNOW THIS BEFORE YOU ARE ASKED
+------------------------------------------------------
+
+  * Every connected system is a MOCK. HR system, calendar, email, document
+    store — all simulated. The adapter interface is real and a Google
+    Calendar/Gmail connector exists, but nothing in the demo talks to a real
+    external service.
+
+  * No authentication in the demo build. Anyone can act as anyone from the
+    company directory. That is why the server REFUSES to listen on anything but
+    localhost while role switching is on — an unauthenticated role switcher on
+    a public port is not a demo, it is an incident. Real sign-in exists and can
+    be switched on.
+
+  * Audit truncation is not detectable. Removing rows from the END of a chain
+    leaves a valid chain. Needs an external anchor; not built.
+
+  * Offboarding checklists (rules X1, X2) and the nightly scheduled checks
+    (J1) work and are tested, but no company has an acceptance case for them,
+    so they are not seeded into the demo data. They are reachable from the Work
+    items and Configuration screens if anybody asks.
+
+  * Interview scheduling counts the notice period from the start of the working
+    day, not the wall clock, because the kernel runs on dates so that a run is
+    reproducible. It is a documented approximation, not an oversight.
+
+  * No model has ever been evaluated, because none is called. If a customer
+    wants one on, that is new work and new testing.
+
+
+D4. THE EVIDENCE, IF SOMEONE WANTS IT
+-------------------------------------
+
+  python3 -m pytest
+      416 tests pass, 1 skipped deliberately.
+
+  python3 -m hr_agent.cli validate
+      All three companies' configs validate clean.
+
+  python3 -m hr_agent.cli simulate
+      Runs every company's OWN acceptance cases through the real kernel:
+        Acme Labs       20/20 reached their expected rule
+        Meridian Group  16/16
+        Harbour Clinic  16/16
+
+  python3 -m hr_agent.cli audit verify
+      Recomputes every hash. "chain intact: 338 rows across 3 companies."
+
+  python3 -m hr_agent.cli walkthrough acme_labs
+      The entire demo as text, twelve steps, no browser needed. Use this if the
+      dashboard breaks in front of people — see D5.
+
+
+D5. IF SOMETHING GOES WRONG
+---------------------------
+
+"The agent is not answering."
+  Terminal 1 stopped. Click it, press up arrow, Enter. Reload the browser.
+
+The page is blank or will not load.
+  Terminal 2 stopped. Same fix — up arrow, Enter, reload.
+
+"nobody decides their own request" when you try to approve.
+  You are acting as the person who made the request. This is the system working
+  correctly, not a bug — say so out loud and move on. The fix depends on who
+  asked:
+     Maya asked (Moment 3)              -> switch to Hana Suzuki
+     Hana asked (Moment 3b, interview)  -> switch to Joel Asante
+
+"this is assigned to hr_partner, which this account does not hold."
+  Switch to Hana Suzuki, or Joel Asante if Hana was the one who asked.
+
+You clicked Run it and nothing happened.
+  The box was empty, or you clicked before typing.
+
+The numbers look wrong or the queue is empty.
+  In a third terminal:
+    cd ~/Desktop/hr_operation_agent
+    python3 -m hr_agent.cli demo acme_labs --reset
+  Then reload the browser.
+
+EVERYTHING IS BROKEN AND PEOPLE ARE WATCHING.
+  Say: "Let me show you this from the command line instead." Then run:
+    python3 -m hr_agent.cli walkthrough acme_labs
+  That prints the whole demo as text — twelve steps, including the interview
+  being scheduled and booked and a form being read — and needs no browser. It
+  runs the real kernel against the real database, so the dashboard shows the
+  same work afterwards. It is honestly just as convincing.
+
+
+===============================================================================
+ PART E — ONE-PAGE CHEAT SHEET
+===============================================================================
+
+ Tape this to your monitor.
+
+ BEFORE:  init  ->  demo acme_labs/meridian_group/harbour_clinic --reset
+          ->  serve  ||  npm run dev  ||  open localhost:5173
+          SET "Acting as" = Maya Iyer
+
+ 1  ASK   "How many days of annual leave do I get in a year?"      -> Run it
+          -> quotes the policy verbatim, 12 verify checks green
+
+ 2  ASK   "My manager keeps making comments about my accent..."     -> Run it
+          -> IT REFUSES TO ANSWER. This is the product. PAUSE HERE.
+          -> "Find policy" circle stays greyed out: it never even looked
+
+ 3  ASK   "I have moved. Please update my home address to
+           12 Oakfield Road, Bristol BS6 7JQ."                      -> Run it
+          -> prepared, not done. SAY THE ADDRESS — it will not invent one
+          -> SWITCH to Hana Suzuki (Maya can't approve her own)
+          -> Approvals -> click the A1 item -> Approve and send
+
+ 3b ASK   "Please arrange a technical interview with Astrid Lindqvist
+           (astrid.l@example.test) for the Head of Finance role,
+           with Priya and Sam."                                     -> Run it
+          -> 3 calendars read; days ruled out WITH REASONS
+          -> "what approving would do": calendar + candidate email + brief
+          -> SWITCH to Joel Asante (Hana can't approve her own either)
+          -> Approvals -> approve -> INTERVIEWS tab -> it exists now
+
+ 3c ASK   click test case "Here is my completed new starter form."
+           (tagged WITH A DOCUMENT — fills the form in for you)     -> Run it
+          -> reads every field back
+          -> BANK DETAILS = "filled in, not repeated here"   <- the beat
+          -> delete the Emergency contact line, Run again -> names what's missing
+
+ 4  TOP RIGHT: switch company to Meridian  ->  ask question 1 again
+          -> same rule E1, different outcome, zero code change
+          -> Rules tab -> gold row, "set by: tenant"
+          -> "a company can only make it stricter — or it will not boot"
+
+ 5  AUDIT tab  ->  hash-chained trail  ->  close
+
+ CLOSE:  quotes instead of inventing  ·  refuses when it should  ·  does the
+         back-office work  ·  every company configures it and can only tighten
+
+ IF IT BREAKS:  python3 -m hr_agent.cli walkthrough acme_labs
+
+===============================================================================
+ END
+===============================================================================

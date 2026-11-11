@@ -1,0 +1,33 @@
+# Populations inside the company. Overlays resolve after the tenant layer and,
+# like the tenant layer, may only tighten.
+
+segments:
+  - id: entity_sg
+    label: "Meridian Singapore"
+    match: { entity: meridian_sg }
+
+  - id: entity_my
+    label: "Meridian Malaysia"
+    match: { entity: meridian_my }
+
+  - id: entity_hk
+    label: "Meridian Hong Kong"
+    match: { entity: meridian_hk }
+
+  - id: collective_agreement
+    label: "Covered by a collective agreement"
+    match: { segment_keys: [collective_agreement] }
+    rules:
+      - id: A1
+        mode: hand_over
+        reason: "Record changes for this population are consulted with employee representatives, so a person owns them from the start."
+    approvals_role_overrides:
+      hr_operations: er_specialist
+
+  - id: contractors
+    label: "Contractors"
+    match: { employment_type: contractor }
+    rules:
+      - id: E2
+        mode: hand_over
+        reason: "Contractor terms sit outside the employee policies, so questions about them go to a person."

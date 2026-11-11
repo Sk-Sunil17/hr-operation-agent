@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.deepeval/
+var/*.db
+var/*.db-wal
+var/*.db-shm
+node_modules/
+client/dist/
+*.zip
+.env
+
+# npm/yarn debug output
+npm-debug.log*
+yarn-error.log*
