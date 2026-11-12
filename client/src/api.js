@@ -1,6 +1,12 @@
 // Thin wrapper around the agent's JSON API. Every function returns parsed JSON
 // or throws an Error whose message is safe to show to the user.
-const BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+// Where the agent is. Empty means "same origin", which is what the local dev
+// proxy does. A hosting platform that wires services together for you tends to
+// supply a bare hostname with no scheme -- and `fetch('host/api/x')` is a
+// RELATIVE path, so it would quietly request the dashboard's own origin and
+// fail in a way that looks like the API being down. Add the scheme if missing.
+const RAW = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
+const BASE = RAW && !/^https?:\/\//i.test(RAW) ? `https://${RAW}` : RAW;
 
 // A hosted dashboard talks to an API somewhere else; a local one proxies to
 // 127.0.0.1. Telling a stranger on a public URL to run a CLI command is useless

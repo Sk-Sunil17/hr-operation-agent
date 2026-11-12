@@ -1,14 +1,23 @@
-# Render blueprint for the agent's API.
+# Render blueprint: the whole thing, both halves, wired to each other.
 #
-# One web service, one small disk. The disk is what makes the demo work: an
-# approval has to still be there on the next request, and the audit chain has to
-# keep its history, so the database cannot live in a filesystem that resets.
+# Two services, because they are genuinely different shapes of problem:
 #
-# Deploy: push this repo, then in Render choose "New > Blueprint" and point it
-# at the repo. Everything below is picked up automatically except the dashboard
-# origin, which you fill in once Vercel has given you a URL.
+#   hr-agent-api        a container with a disk. The demo is stateful -- prepare,
+#                       a person approves, the change exists, the audit chain
+#                       proves the order -- so the database has to survive
+#                       between requests.
+#
+#   hr-agent-dashboard  static files. No server, nothing to keep.
+#
+# The two `fromService` blocks below are the point of doing it this way: the
+# dashboard learns the API's address, and the API learns which origin to trust,
+# without anybody copying a URL between two consoles and getting it wrong. That
+# copy-paste step is the single most common way this kind of deployment fails.
+#
+# Deploy: Render -> New -> Blueprint -> pick this repo. Nothing to fill in.
 
 services:
+  # ---------------------------------------------------------------- the agent
   - type: web
     name: hr-agent-api
     runtime: docker
@@ -27,16 +36,52 @@ services:
 
       # The role switcher is the demo: you act as an employee, then as the HR
       # partner who approves their request. The server refuses to serve that
-      # publicly unless this exact sentence acknowledges what it means.
+      # publicly unless this exact sentence acknowledges what it means -- a
+      # truthy value is deliberately not enough.
       #
-      # Only set this for a demo of the FICTIONAL companies in packs/. For
-      # anything with real employees in it, leave this out and turn on
-      # authentication instead (HR_AUTH=on plus HR_AUTH_SECRET).
+      # Only set this for the FICTIONAL companies in packs/. For anything with
+      # real employees, leave it out and turn on authentication instead
+      # (HR_AUTH=on plus HR_AUTH_SECRET).
       - key: HR_PUBLIC_DEMO
         value: anyone-can-act-as-anyone
 
-      # Browser origins allowed to call this API. Replace with the URL Vercel
-      # gives the dashboard, then redeploy. Keeping localhost means you can
-      # still run the dashboard locally against this hosted API.
+      # Which browser origin may call this API. Filled in from the dashboard
+      # service below, so it is right by construction.
       - key: HR_CORS_ORIGINS
-        value: http://localhost:5173,https://hr-operation-agent.vercel.app
+        fromService:
+          name: hr-agent-dashboard
+          type: static
+          property: host
+
+  # ---------------------------------------------------------------- the screens
+  - type: static
+    name: hr-agent-dashboard
+    buildCommand: cd client && npm install && npm run build
+    staticPublishPath: client/dist
+    pullRequestPreviewsEnabled: false
+
+    envVars:
+      # Where the agent is. Read at BUILD time by Vite, so a change here needs
+      # a redeploy of this service, not just a restart.
+      - key: VITE_API_BASE_URL
+        fromService:
+          name: hr-agent-api
+          type: web
+          property: host
+
+    routes:
+      # A single-page app: every path that is not a real file serves index.html.
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+    headers:
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: no-referrer

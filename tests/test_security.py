@@ -433,3 +433,64 @@ def test_localhost_is_unaffected_by_any_of_this(monkeypatch):
     assert started, "a localhost bind should still start"
     importlib.reload(config_mod)
     importlib.reload(web_mod)
+
+
+# ---------------------------------------------------------------- cors origins
+#
+# A hosting platform that wires two services together supplies the other
+# service's HOSTNAME, with no scheme. A browser always sends a full origin. So
+# comparing "dash.example.com" against "https://dash.example.com" rejects every
+# request with a CORS error that looks nothing like a configuration mistake --
+# which is why a bare host is accepted and read as https.
+
+
+@pytest.mark.parametrize(
+    ("supplied", "expected"),
+    [
+        ("dash.onrender.com", "https://dash.onrender.com"),
+        ("https://dash.onrender.com", "https://dash.onrender.com"),
+        ("http://dash.onrender.com", "http://dash.onrender.com"),
+        ("dash.onrender.com/", "https://dash.onrender.com"),
+        ("  dash.onrender.com  ", "https://dash.onrender.com"),
+        # Localhost without a scheme is far more likely to be http.
+        ("localhost:5173", "http://localhost:5173"),
+        ("127.0.0.1:5173", "http://127.0.0.1:5173"),
+    ],
+)
+def test_a_bare_hostname_is_read_as_an_origin(monkeypatch, supplied, expected):
+    import importlib
+
+    monkeypatch.setenv("HR_CORS_ORIGINS", supplied)
+    from hr_agent import config as config_mod
+
+    importlib.reload(config_mod)
+    assert config_mod.CORS_ORIGINS == [expected]
+    monkeypatch.delenv("HR_CORS_ORIGINS", raising=False)
+    importlib.reload(config_mod)
+
+
+def test_the_browser_origin_actually_matches_a_bare_configured_host(monkeypatch):
+    """The end-to-end version of the above, through the real middleware."""
+    import importlib
+
+    from fastapi.testclient import TestClient
+
+    monkeypatch.setenv("HR_CORS_ORIGINS", "dash.onrender.com")
+    from hr_agent import config as config_mod
+
+    importlib.reload(config_mod)
+    from hr_agent import web as web_mod
+
+    importlib.reload(web_mod)
+
+    client = TestClient(web_mod.create_app(db_path=":memory:"))
+    allowed = client.get("/api/health", headers={"Origin": "https://dash.onrender.com"})
+    assert allowed.headers.get("access-control-allow-origin") == "https://dash.onrender.com"
+
+    # And an origin nobody configured is still not allowed.
+    other = client.get("/api/health", headers={"Origin": "https://somewhere.else"})
+    assert other.headers.get("access-control-allow-origin") is None
+
+    monkeypatch.delenv("HR_CORS_ORIGINS", raising=False)
+    importlib.reload(config_mod)
+    importlib.reload(web_mod)

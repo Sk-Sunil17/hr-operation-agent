@@ -38,10 +38,29 @@ PUBLIC_DEMO = os.environ.get("HR_PUBLIC_DEMO", "") == PUBLIC_DEMO_ACK
 
 # Browser origins allowed to call this API. The dashboard is served from
 # somewhere else in a hosted deployment, so this cannot be a constant.
+#
+# A bare hostname is accepted and read as https. Hosting platforms that wire
+# services together supply the host without a scheme, and a browser always
+# sends a full origin -- so comparing "dash.example.com" against
+# "https://dash.example.com" would reject every request with a CORS error that
+# looks nothing like a configuration mistake.
+def _origin(value: str) -> str:
+    value = value.strip().rstrip("/")
+    if not value or value.startswith(("http://", "https://")):
+        return value
+    # localhost without a scheme is far more likely to be http than https.
+    scheme = "http" if value.startswith(("localhost", "127.0.0.1", "[::1]")) else "https"
+    return f"{scheme}://{value}"
+
+
 CORS_ORIGINS = [
-    o.strip() for o in os.environ.get(
-        "HR_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
-    ).split(",") if o.strip()
+    origin
+    for origin in (
+        _origin(o) for o in os.environ.get(
+            "HR_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+        ).split(",")
+    )
+    if origin
 ]
 
 

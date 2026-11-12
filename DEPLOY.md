@@ -79,6 +79,28 @@ Option 1 because it was quicker.
 
 ---
 
+## The short way: both halves on Render, one click
+
+`render.yaml` now describes **both** services — the API container and the
+dashboard as static files — and wires them to each other with Render's
+`fromService` references. So there is no URL to copy between two consoles,
+which is the step people get wrong.
+
+1. [dashboard.render.com](https://dashboard.render.com) → **New** → **Blueprint**
+2. Connect this repo. Render reads `render.yaml` and shows two services.
+3. **Apply**. Nothing to fill in.
+
+When both are live, open the `hr-agent-dashboard` URL. You should see the
+public-demo banner and Acme Labs with work waiting.
+
+The API is on the free tier, so it sleeps when idle and takes about 30 seconds
+to wake. Open the link a minute before you show anyone.
+
+Everything below is the longer, split route — useful if you specifically want
+the dashboard on Vercel.
+
+---
+
 ## Part 1 — the API on Render
 
 The repo has a `render.yaml`, so this is mostly clicking.
