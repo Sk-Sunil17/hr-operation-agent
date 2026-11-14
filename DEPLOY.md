@@ -1,14 +1,12 @@
 # Deploying it
 
-Two pieces: an **API** that must keep its state, and a **dashboard** that is
-just static files.
-
-That split is the whole reason this page exists. The dashboard goes anywhere.
-The API does not, and the reason is worth understanding before you pick a host.
+One server. The same process serves the **dashboard** (every path) and the
+**JSON API** (`/api/*`) from one origin, so there is no API address to bake into
+the dashboard and no CORS origin to keep in step with it.
 
 ---
 
-## Why the API is not serverless
+## Why it is not serverless
 
 The demo is stateful on purpose. The sequence that makes the product's argument
 is:
@@ -23,9 +21,8 @@ next request may not see, so approvals vanish, booked interviews vanish, and the
 hash-chained audit trail — the thing that is meant to be tamper-evident — starts
 over. You would be demonstrating the opposite of the claim.
 
-So: **one small always-on container with a disk.** Render, Railway and Fly all
-do this on a free or near-free tier. The Dockerfile in this repo is that
-container.
+So: **one small always-on container.** Render, Railway and Fly all do this. The
+Dockerfile in this repo builds the dashboard and ships it inside that container.
 
 ---
 
@@ -72,70 +69,50 @@ HR_AUTH=on
 HR_AUTH_SECRET=<a long random string>
 ```
 
-Create sign-ins with `hrctl account`. **Note:** the dashboard has no login
-screen yet — the API has `/api/auth/login`, but the React client never calls it.
-So this path needs that screen built first. Do not put real employee data behind
-Option 1 because it was quicker.
+With it on, the dashboard opens on a sign-in screen, there is no role switcher,
+and every company-scoped `/api` route needs a session for that company. Five
+wrong passwords lock an account for 15 minutes. Create sign-ins with:
+
+```bash
+hrctl account acme_labs emp_021 --email hana@acme.test
+```
+
+Sessions last a working day and end when the browser tab closes. Do not put real
+employee data behind Option 1 because it was quicker.
 
 ---
 
-## The short way: both halves on Render, one click
-
-`render.yaml` now describes **both** services — the API container and the
-dashboard as static files — and wires them to each other with Render's
-`fromService` references. So there is no URL to copy between two consoles,
-which is the step people get wrong.
+## Render, one click
 
 1. [dashboard.render.com](https://dashboard.render.com) → **New** → **Blueprint**
-2. Connect this repo. Render reads `render.yaml` and shows two services.
+2. Connect this repo. Render reads `render.yaml` and shows one service,
+   `hr-agent`.
 3. **Apply**. Nothing to fill in.
 
-When both are live, open the `hr-agent-dashboard` URL. You should see the
-public-demo banner and Acme Labs with work waiting.
-
-The API is on the free tier, so it sleeps when idle and takes about 30 seconds
-to wake. Open the link a minute before you show anyone.
-
-Everything below is the longer, split route — useful if you specifically want
-the dashboard on Vercel.
-
----
-
-## Part 1 — the API on Render
-
-The repo has a `render.yaml`, so this is mostly clicking.
-
-1. Push this repo to GitHub.
-2. Render → **New** → **Blueprint** → pick the repo.
-3. It reads `render.yaml`: one Docker web service, a 1 GB disk mounted at
-   `/data`, health check on `/api/health`.
-4. Check the environment variables it proposes:
-   - `HR_VAR_DIR=/data` — the database lives on the disk, not in the image.
-   - `HR_PUBLIC_DEMO=anyone-can-act-as-anyone` — read the section above before
-     leaving this in.
-   - `HR_CORS_ORIGINS` — fill in once you have the Vercel URL (Part 3).
-5. Deploy. First boot runs `hrctl init`, seeds all three companies, and writes
-   `/data/.seeded` so a restart does **not** wipe your demo state.
-
-Confirm it:
+First boot runs `hrctl init`, seeds all three companies, and writes
+`/data/.seeded` so a restart with a disk does **not** wipe your demo state.
+Open the service URL: you should see the public-demo banner and Acme Labs with
+work waiting. Confirm the API with:
 
 ```bash
 curl https://<your-service>.onrender.com/api/health
 ```
 
-You want `"ok": true` and `"public": true`.
+**The free plan has no disk.** Render cannot attach a persistent disk to a free
+instance, so on free the database lives inside the container: the demo is fully
+stateful while the instance is up, and re-seeds when it restarts. To keep state
+across restarts, switch the service to a paid plan and add the disk block shown
+in the comment in `render.yaml`.
 
-**Free tier caveat worth knowing before a live demo:** Render's free instances
-sleep after inactivity and take ~30 seconds to wake. Hit the URL a minute before
-you present, or pay for the always-on tier. Nothing is more awkward than a
-loading spinner in front of a room.
+Free instances also sleep when idle and take about 30 seconds to wake. Open the
+link a minute before you show anyone.
 
 To re-seed later: delete `/data/.seeded` from the Render shell and restart, or
 run `hrctl demo acme_labs --reset` there.
 
 ### Railway or Fly instead
 
-Same container, same two environment variables.
+Same container, same environment variables.
 
 - **Railway** — New Project → Deploy from GitHub → it finds the Dockerfile. Add
   a volume at `/data` and set `HR_VAR_DIR=/data`.
@@ -144,68 +121,23 @@ Same container, same two environment variables.
 
 ---
 
-## Part 2 — the dashboard on Vercel
-
-`vercel.json` is already set up: it builds `client/` and serves
-`client/dist` as a static site.
-
-1. Vercel → **Add New** → **Project** → import the repo.
-2. Leave the build settings alone; `vercel.json` has them.
-3. Add one environment variable:
-
-   | Name | Value |
-   |---|---|
-   | `VITE_API_BASE_URL` | `https://<your-service>.onrender.com` |
-
-   This is read at **build** time, not run time. If you change it, redeploy —
-   otherwise the old URL stays baked into the bundle.
-4. Deploy.
-
-If you skip step 3 the dashboard loads and then says *"Cannot reach the
-agent"*, because it is calling `/api` on Vercel, where nothing is listening.
-That message is the symptom of a missing `VITE_API_BASE_URL`, every time.
-
----
-
-## Part 3 — let them talk to each other
-
-The browser calls the API cross-origin, so the API has to allow the dashboard's
-origin. Back in Render, set:
-
-```
-HR_CORS_ORIGINS=https://<your-project>.vercel.app,http://localhost:5173
-```
-
-Keep `localhost:5173` in the list so you can still run the dashboard locally
-against the hosted API, which is a genuinely useful way to work.
-
-Then redeploy the Render service and reload the dashboard. If the screens are
-empty and the browser console shows a CORS error, this is the variable you got
-wrong — check for a trailing slash, and that it is `https`.
-
-Vercel gives every branch and every preview its own hostname, and those are
-*not* in this list. Either add the ones you care about or accept that only
-production works.
-
----
-
 ## Running it locally, which is still the best demo
 
-Nothing above is needed for this, and it has no cold start:
+No cold start, nothing hosted:
 
 ```bash
 python3 -m hr_agent.cli init
 python3 -m hr_agent.cli demo acme_labs --reset
 python3 -m hr_agent.cli demo meridian_group --reset
 python3 -m hr_agent.cli demo harbour_clinic --reset
+(cd client && npm install && npm run build)     # once, or after changing the dashboard
 python3 -m hr_agent.cli serve
 ```
 
-```bash
-cd client && npm run dev
-```
+Then <http://127.0.0.1:4000>. See `HR_AGENT_GUIDE.txt` for what to say.
 
-Then <http://localhost:5173>. See `HR_AGENT_GUIDE.txt` for what to say.
+Changing the dashboard? `cd client && npm run dev` serves it with hot reload on
+<http://localhost:5173> and forwards `/api` to the server on 4000.
 
 And if the browser ever fails in front of people:
 
@@ -224,13 +156,13 @@ Twelve steps, the whole demo as text, no browser involved.
 | `HR_VAR_DIR` | `./var` | Where the SQLite database lives. Point it at a mounted disk. |
 | `HR_DB_PATH` | `$HR_VAR_DIR/hr.db` | The database file itself, if you want it elsewhere. |
 | `HR_PACKS_DIR` | `./packs` | Where company configuration is read from. |
+| `HR_DASHBOARD_DIR` | `./client/dist` | The built dashboard the server hands out. |
 | `HR_PUBLIC_DEMO` | *(unset)* | Must be exactly `anyone-can-act-as-anyone` to allow a public bind with the role switcher on. |
-| `HR_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Comma-separated browser origins allowed to call the API. |
 | `HR_AUTH` | `off` | `on` turns on sign-in and turns the role switcher off. |
-| `HR_AUTH_SECRET` | *(ephemeral)* | Signing key for sessions. Unset means sessions die on restart. |
+| `HR_AUTH_SECRET` | *(ephemeral)* | Signing key for sessions (`HR_SESSION_SECRET` also works). Unset means sessions die on restart. |
 | `HR_REDACTION` | `on` | Only ever set this off in a test that proves the refusal happens. |
+| `HR_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Only for a dashboard served from another origin, such as `npm run dev`. |
 | `PORT` | `4000` | Injected by most platforms. |
-| `VITE_API_BASE_URL` | *(empty)* | **Build-time**, for the dashboard. Where the API is. |
 
 ---
 
@@ -241,8 +173,8 @@ Say this out loud rather than letting someone discover it:
 - Every connected system is a **mock**. HR system, calendar, email, document
   store. The adapter interface is real and a Google Calendar/Gmail connector
   exists, but the demo talks to nothing outside itself.
-- **No login screen** in the dashboard, so `HR_AUTH=on` is not yet a usable
-  path for a hosted deployment.
+- Sign-in lockouts are kept in memory, so they reset on restart and are not
+  shared between several server processes.
 - SQLite. Fine for a demo and for a pilot of one company; the schema was
   written to be Postgres-compatible for when that stops being true.
 - Audit **truncation** is not detectable — removing rows from the end of a chain

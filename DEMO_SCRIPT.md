@@ -10,33 +10,22 @@ Everything else is supporting detail.
 
 ## Part 1 · Five minutes before you start
 
-Run these commands. Do not skip any of them — they reset the data so the demo
-looks clean and the numbers make sense.
+Run this one command. It resets the data so the demo looks clean and the
+numbers make sense:
 
-**Terminal 1:**
 ```bash
 cd ~/Desktop/hr_operation_agent
-python3 -m hr_agent.cli init
-python3 -m hr_agent.cli demo acme_labs --reset
-python3 -m hr_agent.cli demo meridian_group --reset
-python3 -m hr_agent.cli demo harbour_clinic --reset
-python3 -m hr_agent.cli serve
+python3 -m hr_agent.cli up --reset
 ```
 
-`init` creates the database and loads all three packs. The three `demo` lines
-seed a morning of traffic for each company, so no screen you click on is empty —
-including Harbour Clinic, which somebody always switches to.
+It loads all three companies, seeds a morning of traffic for each — so no screen
+you click on is empty, including Harbour Clinic, which somebody always switches
+to — builds the dashboard if needed, and serves the dashboard and the API on one
+port. Leave it running. It prints "HR Operations Agent on http://127.0.0.1:4000".
 
-Leave that running. It will print "API on http://127.0.0.1:4000".
+If the dashboard build complains about Node, run `nvm use 22` first.
 
-**Terminal 2:**
-```bash
-cd ~/Desktop/hr_operation_agent/client
-npm run dev
-```
-If it complains about Node, run `nvm use 22` first, then `npm run dev` again.
-
-**Browser:** open <http://localhost:5173>
+**Browser:** open <http://127.0.0.1:4000>
 
 **One more setup step — do not skip it.** In the top right, change
 **"Acting as"** to **Maya Iyer**. You are going to start the demo as an ordinary
@@ -573,8 +562,7 @@ Being caught overclaiming loses the room. These are the traps.
 Tape this to your monitor.
 
 ```
-BEFORE:  init  ·  demo acme_labs/meridian_group/harbour_clinic --reset  ·  serve
-         npm run dev  ·  open localhost:5173
+BEFORE:  python3 -m hr_agent.cli up --reset  ·  open 127.0.0.1:4000
          SET "Acting as" = Maya Iyer
 
 1  ASK   "How many days of annual leave do I get in a year?"  → Run it

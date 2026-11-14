@@ -13,3 +13,4 @@ client/dist/
 # npm/yarn debug output
 npm-debug.log*
 yarn-error.log*
+client/node-compile-cache/

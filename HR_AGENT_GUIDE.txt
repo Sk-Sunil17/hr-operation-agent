@@ -339,30 +339,22 @@ The main modules, so you can answer "where does X live":
 C1. BEFORE YOU START — SETUP
 ----------------------------
 
-Run these in order. Do not skip any; they reset the data so the numbers make
-sense and no screen you click is empty.
+One command. It resets the data so the numbers make sense and no screen you
+click is empty.
 
-  TERMINAL 1:
     cd ~/Desktop/hr_operation_agent
-    python3 -m hr_agent.cli init
-    python3 -m hr_agent.cli demo acme_labs --reset
-    python3 -m hr_agent.cli demo meridian_group --reset
-    python3 -m hr_agent.cli demo harbour_clinic --reset
-    python3 -m hr_agent.cli serve
+    python3 -m hr_agent.cli up --reset
 
-  Leave that running. It prints "API on http://127.0.0.1:4000".
+  Leave that running. It prints "HR Operations Agent on http://127.0.0.1:4000"
+  and serves the dashboard and the API on that one port.
 
-  `init` creates the database and loads all three companies' config. The three
-  `demo` lines seed a morning of realistic traffic for each, including one
-  interview already booked and several things waiting for approval.
+  It loads all three companies' config, seeds a morning of realistic traffic
+  for each (one interview already booked, several things waiting for
+  approval), and builds the dashboard if it is missing or out of date.
 
-  TERMINAL 2:
-    cd ~/Desktop/hr_operation_agent/client
-    npm run dev
+  If the build complains about Node: run `nvm use 22` first.
 
-  If it complains about Node: run `nvm use 22` first, then `npm run dev` again.
-
-  BROWSER: http://localhost:5173
+  BROWSER: http://127.0.0.1:4000
 
   ONE MORE STEP, DO NOT SKIP: top right, change "Acting as" to MAYA IYER. You
   start the demo as an ordinary employee and become HR later.
@@ -922,8 +914,7 @@ EVERYTHING IS BROKEN AND PEOPLE ARE WATCHING.
 
  Tape this to your monitor.
 
- BEFORE:  init  ->  demo acme_labs/meridian_group/harbour_clinic --reset
-          ->  serve  ||  npm run dev  ||  open localhost:5173
+ BEFORE:  python3 -m hr_agent.cli up --reset  ||  open 127.0.0.1:4000
           SET "Acting as" = Maya Iyer
 
  1  ASK   "How many days of annual leave do I get in a year?"      -> Run it

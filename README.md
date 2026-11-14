@@ -26,7 +26,15 @@ verbatim, and the verify gate checks the quote is really there.
 
 ## Run the demo
 
-Three commands. Nothing to install beyond what is listed under Requirements.
+**One command** loads the companies, seeds each with a morning of traffic, builds
+the dashboard if it is missing or out of date, and serves everything on one port:
+
+```bash
+python3 -m hr_agent.cli up            # open http://127.0.0.1:4000
+python3 -m hr_agent.cli up --reset    # the same, with every company re-seeded fresh
+```
+
+Or step by step:
 
 ```bash
 # 1. Build the database and load both companies' packs
@@ -40,8 +48,11 @@ python3 -m hr_agent.cli demo acme_labs
 python3 -m hr_agent.cli demo meridian_group --reset
 python3 -m hr_agent.cli demo harbour_clinic --reset
 
-# 4. Start the API (leave it running; it restarts itself on a code change)
-python3 -m hr_agent.cli serve
+# 4. Build the dashboard once (needs Node 20+)
+(cd client && npm install && npm run build)
+
+# 5. Start the server: dashboard and API on one port
+python3 -m hr_agent.cli serve      # open http://127.0.0.1:4000
 ```
 
 `walkthrough` runs nine steps against the real database: it decides without
@@ -52,20 +63,16 @@ question at the other company, breaks an audit chain on a throwaway copy, and
 ends on the metrics with their caveats. Everything it does is then clickable in
 the dashboard.
 
-Then, in a second terminal:
-
-```bash
-cd client
-npm install        # first time only
-npm run dev        # open http://localhost:5173
-```
+One server, one port: `/api/*` is the JSON API and every other path is the
+dashboard. Only if you are changing the dashboard itself, run `cd client && npm
+run dev` for hot reload on <http://localhost:5173>; it forwards `/api` to the
+server on 4000.
 
 ### Deploying it
 
-`DEPLOY.md` has the full walkthrough. The short version: the API needs an
-always-on container with a disk (Render, Railway, Fly — there is a `Dockerfile`
-and a `render.yaml`), and the dashboard is static files that go on Vercel
-(`vercel.json`). It is deliberately not serverless: the demo is stateful, and a
+`DEPLOY.md` has the full walkthrough. The short version: one always-on
+container serves both the dashboard and the API (Render, Railway, Fly — there is
+a `Dockerfile` and a `render.yaml`). It is deliberately not serverless: the demo is stateful, and a
 platform that discards the filesystem between requests breaks the approval
 sequence the product exists to show.
 

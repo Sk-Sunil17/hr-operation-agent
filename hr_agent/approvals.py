@@ -13,6 +13,7 @@ The rules this enforces are the ones a company is actually audited on:
 from __future__ import annotations
 
 import sqlite3
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from typing import Any
@@ -161,6 +162,8 @@ def decide(
             "sending something back needs a reason code as well as a note, so the pattern "
             f"can be counted later. Expected one of: {', '.join(REASON_CODES)}"
         )
+    if outcome == "sent_back" and not note:
+        raise ApprovalError("sending something back needs a reason the requester can read")
 
     row = db.one(conn, "SELECT * FROM approval WHERE tenant_id = ? AND id = ?", (cfg.tenant_id, approval_id))
     if row is None:
@@ -188,10 +191,7 @@ def decide(
             redactor=redactor, work_item_id=approval["work_item_id"], detail=detail, config_hash=cfg.config_hash,
         )
 
-    committed: list[str] = []
-    cancelled: list[str] = []
     blocked: list[str] = []
-
     if outcome == "approved":
         # The citation is re-checked NOW. A policy may have changed since the draft.
         citations = [
@@ -215,6 +215,55 @@ def decide(
                 + ". Run it again so the reply quotes the current version."
             )
 
+    # Claim the approval before acting on it. Two requests deciding the same
+    # approval at once both pass the status check above; only one may win this
+    # conditional update, so only one ever commits the prepared actions.
+    claimed = conn.execute(
+        "UPDATE approval SET status = 'decided', outcome = ?, note = ?, decided_at = ?, decided_by = ? "
+        "WHERE tenant_id = ? AND id = ? AND status = 'open'",
+        (outcome, note, db.now(), actor_id, cfg.tenant_id, approval_id),
+    ).rowcount
+    if not claimed:
+        raise ApprovalError("this approval has already been decided")
+    try:
+        committed, cancelled = _carry_out(
+            conn, cfg, registry=registry, approval=approval, item=item, prepared=prepared,
+            actor_id=actor_id, outcome=outcome, note=note, reason_code=reason_code, write_audit=write_audit,
+        )
+    except Exception:
+        conn.execute(
+            "UPDATE approval SET status = 'open', outcome = NULL, note = NULL, decided_at = NULL, decided_by = NULL "
+            "WHERE tenant_id = ? AND id = ?",
+            (cfg.tenant_id, approval_id),
+        )
+        raise
+
+    conn.execute(
+        "UPDATE decision SET human_verdict = ?, human_actor_id = ?, human_note = ?, "
+        "human_reason_code = ?, decided_at = ? WHERE id = ?",
+        (outcome, actor_id, note, reason_code, db.now(), approval["decision_id"]),
+    )
+    return Decided(approval_id, outcome, committed, cancelled, note, blocked, reason_code)
+
+
+def _carry_out(
+    conn: sqlite3.Connection,
+    cfg: ResolvedConfig,
+    *,
+    registry: tools.Registry,
+    approval: dict[str, Any],
+    item: sqlite3.Row,
+    prepared: list[dict[str, Any]],
+    actor_id: str,
+    outcome: str,
+    note: str | None,
+    reason_code: str | None,
+    write_audit: Callable[..., None],
+) -> tuple[list[str], list[str]]:
+    committed: list[str] = []
+    cancelled: list[str] = []
+
+    if outcome == "approved":
         for plan in prepared:
             registry.commit(plan["id"], actor=actor_id, authorised=True)
             committed.append(plan["id"])
@@ -225,8 +274,6 @@ def decide(
         write_audit("act", f"approved and sent: {len(committed)} action(s) committed", {"note": note})
 
     elif outcome == "sent_back":
-        if not note:
-            raise ApprovalError("sending something back needs a reason the requester can read")
         for plan in prepared:
             registry.cancel(plan["id"], f"sent back: {note}")
             cancelled.append(plan["id"])
@@ -257,16 +304,7 @@ def decide(
         )
         write_audit("handover", "taken over by a person; the agent stops on this case", {"note": note})
 
-    conn.execute(
-        "UPDATE approval SET status = 'decided', outcome = ?, note = ?, decided_at = ?, decided_by = ? WHERE id = ?",
-        (outcome, note, db.now(), actor_id, approval_id),
-    )
-    conn.execute(
-        "UPDATE decision SET human_verdict = ?, human_actor_id = ?, human_note = ?, "
-        "human_reason_code = ?, decided_at = ? WHERE id = ?",
-        (outcome, actor_id, note, reason_code, db.now(), approval["decision_id"]),
-    )
-    return Decided(approval_id, outcome, committed, cancelled, note, blocked, reason_code)
+    return committed, cancelled
 
 
 def record_edit(conn: sqlite3.Connection, cfg: ResolvedConfig, *, decision_id: str, edited: str, actor_id: str) -> None:

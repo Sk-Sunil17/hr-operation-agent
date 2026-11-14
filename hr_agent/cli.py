@@ -601,16 +601,69 @@ def cmd_simulate(args: argparse.Namespace) -> int:
 def cmd_serve(args: argparse.Namespace) -> int:
     from .web import serve
 
-    heading(f"HR Operations Agent API on http://{args.host}:{args.port}")
+    heading(f"HR Operations Agent on http://{args.host}:{args.port}")
+    _w(f"  dashboard  http://{args.host}:{args.port}/")
+    _w(f"  api docs   http://{args.host}:{args.port}/api/docs")
     _w(f"  database   {config.DB_PATH}")
     _w(f"  companies  {', '.join(loader.tenant_ids())}")
-    _w(f"  docs       http://{args.host}:{args.port}/api/docs")
     _w()
-    _w("  For the dashboard, in another terminal:")
-    _w("    cd client && npm run dev     (then open http://localhost:5173)")
+    if not (config.DASHBOARD_DIR / "index.html").is_file():
+        _w("  The dashboard is not built yet, so / shows how to build it. Once:")
+        _w("    cd client && npm install && npm run build")
+        _w()
+    _w("  Working on the dashboard itself? `cd client && npm run dev` gives hot reload")
+    _w("  on http://localhost:5173 and forwards /api here.")
     _w()
     serve(host=args.host, port=args.port, reload=not args.no_reload)
     return 0
+
+
+def _dashboard_is_stale() -> bool:
+    """No build, or a source file newer than the build."""
+    built = config.DASHBOARD_DIR / "index.html"
+    if not built.is_file():
+        return True
+    client = config.ROOT / "client"
+    sources = [p for p in (client / "src").rglob("*") if p.is_file()]
+    sources += [client / "index.html", client / "package.json", client / "vite.config.js"]
+    newest = max((p.stat().st_mtime for p in sources if p.exists()), default=0)
+    return newest > built.stat().st_mtime
+
+
+def _build_dashboard() -> bool:
+    import shutil
+    import subprocess
+
+    client = config.ROOT / "client"
+    npm = shutil.which("npm")
+    if npm is None or not (client / "package.json").is_file():
+        return False
+    if not (client / "node_modules").is_dir():
+        _w("  installing the dashboard's packages (first time only)...")
+        subprocess.run([npm, "install", "--no-audit", "--no-fund"], cwd=client, check=True)
+    _w("  building the dashboard...")
+    subprocess.run([npm, "run", "build"], cwd=client, check=True, stdout=subprocess.DEVNULL)
+    return True
+
+
+def cmd_up(args: argparse.Namespace) -> int:
+    """Everything a demo needs, in one command: database, seed data, dashboard, server."""
+    heading("getting the HR Operations Agent ready")
+    cmd_init(argparse.Namespace(tenant="all"))
+
+    conn = db.open_db()
+    seeded = {r["tenant_id"] for r in db.rows(conn, "SELECT DISTINCT tenant_id FROM work_item")}
+    conn.close()
+    for tenant_id in loader.tenant_ids():
+        if args.reset or tenant_id not in seeded:
+            _w(f"  seeding {tenant_id}...")
+            cmd_demo(argparse.Namespace(tenant=tenant_id, reset=True, on=None))
+
+    if _dashboard_is_stale():
+        if not _build_dashboard():
+            _w("  npm was not found, so the dashboard could not be built. Install Node 20+ and run")
+            _w("    cd client && npm install && npm run build")
+    return cmd_serve(argparse.Namespace(host=args.host, port=args.port, no_reload=True))
 
 
 def _would_book(conn, cfg: ResolvedConfig, work_item_id: str) -> bool:
@@ -695,7 +748,7 @@ def cmd_walkthrough(args: argparse.Namespace) -> int:
     """The whole agent, end to end, in one command.
 
     Runs for real against the database the dashboard reads, so everything shown
-    here is also clickable at http://localhost:5173 afterwards. The only part
+    here is also clickable at http://127.0.0.1:4000 afterwards. The only part
     that does not touch the real database is the tamper demonstration, which
     runs on a throwaway copy: breaking a company's audit chain to make a point
     would be a poor way to prove the chain matters.
@@ -966,8 +1019,8 @@ def cmd_walkthrough(args: argparse.Namespace) -> int:
 
     _w()
     _w("=" * 72)
-    _w(f"  Everything above is in the dashboard now: http://localhost:5173")
-    _w(f"  Start it with: python3 -m hr_agent.cli serve   and   cd client && npm run dev")
+    _w("  Everything above is in the dashboard now: http://127.0.0.1:4000")
+    _w("  Start it with: python3 -m hr_agent.cli serve")
     _w("=" * 72)
     return 0
 
@@ -1125,7 +1178,7 @@ def cmd_account(args: argparse.Namespace) -> int:
     if not auth.enabled():
         _w()
         _w("  Authentication is currently OFF (HR_AUTH is not set), so this account is not")
-        _w("  used yet. Start the server with HR_AUTH=on and HR_SESSION_SECRET set to use it.")
+        _w("  used yet. Start the server with HR_AUTH=on and HR_AUTH_SECRET set to use it.")
     return 0
 
 
@@ -1162,11 +1215,17 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("tenant")
         sp.set_defaults(func=func)
 
-    p_serve = sub.add_parser("serve", help="start the JSON API the dashboard talks to")
+    p_serve = sub.add_parser("serve", help="start the server: the dashboard and its JSON API on one port")
     p_serve.add_argument("--host", default="127.0.0.1")
     p_serve.add_argument("--port", type=int, default=4000)
     p_serve.add_argument("--no-reload", action="store_true", help="do not restart on a code change")
     p_serve.set_defaults(func=cmd_serve)
+
+    p_up = sub.add_parser("up", help="the demo in one command: load, seed, build the dashboard, serve")
+    p_up.add_argument("--host", default="127.0.0.1")
+    p_up.add_argument("--port", type=int, default=4000)
+    p_up.add_argument("--reset", action="store_true", help="re-seed every company from scratch")
+    p_up.set_defaults(func=cmd_up)
 
     p_walk = sub.add_parser("walkthrough", help="the whole agent end to end, in one command")
     p_walk.add_argument("tenant", nargs="?", default="acme_labs")
@@ -1268,6 +1327,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    # Under a process manager or a container, stdout is a pipe and Python holds
+    # output back in a buffer, so a server that is up looks silent.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True)
     args = build_parser().parse_args(argv)
     return args.func(args)
 

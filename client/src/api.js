@@ -1,28 +1,49 @@
 // Thin wrapper around the agent's JSON API. Every function returns parsed JSON
 // or throws an Error whose message is safe to show to the user.
-// Where the agent is. Empty means "same origin", which is what the local dev
-// proxy does. A hosting platform that wires services together for you tends to
-// supply a bare hostname with no scheme -- and `fetch('host/api/x')` is a
-// RELATIVE path, so it would quietly request the dashboard's own origin and
-// fail in a way that looks like the API being down. Add the scheme if missing.
+//
+// The server that hands out this dashboard also answers /api, so every call is
+// same-origin. Under `npm run dev`, Vite forwards /api to the server on 4000.
+// VITE_API_BASE_URL exists only for the rare dashboard hosted somewhere else.
 const RAW = (import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/+$/, '');
 const BASE = RAW && !/^https?:\/\//i.test(RAW) ? `https://${RAW}` : RAW;
 
-// A hosted dashboard talks to an API somewhere else; a local one proxies to
-// 127.0.0.1. Telling a stranger on a public URL to run a CLI command is useless
-// advice, and on a free hosting tier the real cause is usually a cold start.
-const HOSTED = Boolean(BASE);
+const UNREACHABLE =
+  'Cannot reach the agent. If it is hosted on a free tier it may be waking up — wait about 30 ' +
+  'seconds and reload. Locally, start it with `python3 -m hr_agent.cli serve`.';
 
-const UNREACHABLE = HOSTED
-  ? `Cannot reach the agent at ${BASE}. If it is hosted on a free tier it may be waking up — wait about 30 seconds and reload.`
-  : 'Cannot reach the agent. Start it with `python3 -m hr_agent.cli serve` (it listens on 127.0.0.1:4000).';
+// The signed-in session, when the server has authentication on. Kept for the
+// browser tab only: closing the tab signs out, which is the right default for
+// a screen showing other people's HR records.
+const SESSION_KEY = 'hra.session';
+export const SIGNED_OUT = 'hra:signed-out';
+
+export const session = {
+  get() {
+    try {
+      return JSON.parse(sessionStorage.getItem(SESSION_KEY)) || null;
+    } catch {
+      return null;
+    }
+  },
+  set(value) {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(value));
+  },
+  clear() {
+    sessionStorage.removeItem(SESSION_KEY);
+  },
+};
 
 async function request(path, options = {}) {
+  const current = session.get();
   let res;
   try {
     res = await fetch(`${BASE}/api${path}`, {
       ...options,
-      headers: { 'X-HRA-Request': '1', ...(options.headers || {}) },
+      headers: {
+        'X-HRA-Request': '1',
+        ...(current?.token ? { Authorization: `Bearer ${current.token}` } : {}),
+        ...(options.headers || {}),
+      },
     });
   } catch {
     throw new Error(UNREACHABLE);
@@ -32,6 +53,11 @@ async function request(path, options = {}) {
     data = await res.json();
   } catch {
     /* not JSON: handled below */
+  }
+  if (res.status === 401 && current?.token) {
+    // Expired, or signed by a server that has since restarted with a new key.
+    session.clear();
+    window.dispatchEvent(new CustomEvent(SIGNED_OUT, { detail: data?.error || data?.detail }));
   }
   if (!res.ok) {
     throw new Error(data?.error || data?.detail || (res.status >= 500 ? UNREACHABLE : `The request failed (${res.status}).`));
@@ -52,6 +78,8 @@ const json = (body, method = 'POST') => ({
 
 export const api = {
   health: () => request('/health'),
+  login: (tenant, email, password) => request(`/auth/login${query({ tenant })}`, json({ email, password })),
+  me: (tenant) => request(`/auth/me${query({ tenant })}`),
   tenants: () => request('/tenants'),
   people: (tenant) => request(`/people${query({ tenant })}`),
   config: (tenant) => request(`/config${query({ tenant })}`),

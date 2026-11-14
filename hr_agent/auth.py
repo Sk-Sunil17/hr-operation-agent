@@ -26,6 +26,7 @@ import json
 import os
 import secrets
 import sqlite3
+import threading
 import time
 from dataclasses import dataclass
 
@@ -47,7 +48,8 @@ def secret() -> bytes:
     per-process on purpose: restarting invalidates every session, which is the
     safe failure, and it makes a missing secret obvious rather than silent.
     """
-    configured = os.environ.get("HR_SESSION_SECRET")
+    # HR_AUTH_SECRET is the name the deployment guide has always used.
+    configured = os.environ.get("HR_SESSION_SECRET") or os.environ.get("HR_AUTH_SECRET")
     if configured:
         return configured.encode("utf-8")
     global _EPHEMERAL
@@ -119,6 +121,53 @@ def sign_in(conn: sqlite3.Connection, *, tenant_id: str, email: str, password: s
         (db.now(), tenant_id, row["person_id"]),
     )
     return issue(tenant_id=tenant_id, person_id=row["person_id"])
+
+
+# ---------------------------------------------------------------- lockout
+#
+# Per account rather than per address: guessing one person's password from many
+# addresses is the attack that matters here. Kept in memory, so a restart
+# forgets it -- the same trade the sessions make.
+
+MAX_FAILURES = 5
+LOCKOUT_SECONDS = 15 * 60
+_failures: dict[tuple[str, str], list[float]] = {}
+_failures_lock = threading.Lock()
+
+
+def _account_key(tenant_id: str, email: str) -> tuple[str, str]:
+    return tenant_id, email.lower().strip()
+
+
+def _recent(key: tuple[str, str], now: float) -> list[float]:
+    recent = [t for t in _failures.get(key, []) if now - t < LOCKOUT_SECONDS]
+    if recent:
+        _failures[key] = recent
+    else:
+        _failures.pop(key, None)
+    return recent
+
+
+def locked_out(tenant_id: str, email: str) -> int:
+    """Seconds until this account may try again; 0 if it may now."""
+    now = time.time()
+    with _failures_lock:
+        recent = _recent(_account_key(tenant_id, email), now)
+    if len(recent) < MAX_FAILURES:
+        return 0
+    return int(LOCKOUT_SECONDS - (now - recent[-MAX_FAILURES])) + 1
+
+
+def record_failure(tenant_id: str, email: str) -> None:
+    now = time.time()
+    with _failures_lock:
+        key = _account_key(tenant_id, email)
+        _failures[key] = [*_recent(key, now), now]
+
+
+def clear_failures(tenant_id: str, email: str) -> None:
+    with _failures_lock:
+        _failures.pop(_account_key(tenant_id, email), None)
 
 
 # ---------------------------------------------------------------- sessions

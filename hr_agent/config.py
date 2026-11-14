@@ -14,6 +14,8 @@ PACKS_DIR = Path(os.environ.get("HR_PACKS_DIR", ROOT / "packs"))
 BASE_PACK_DIR = PACKS_DIR / "base"
 TENANTS_DIR = PACKS_DIR / "tenants"
 
+DASHBOARD_DIR = Path(os.environ.get("HR_DASHBOARD_DIR", ROOT / "client" / "dist"))
+
 VAR_DIR = Path(os.environ.get("HR_VAR_DIR", ROOT / "var"))
 DB_PATH = Path(os.environ.get("HR_DB_PATH", VAR_DIR / "hr.db"))
 
@@ -36,8 +38,9 @@ REDACTION_ENABLED = os.environ.get("HR_REDACTION", "on").lower() not in {"off", 
 PUBLIC_DEMO_ACK = "anyone-can-act-as-anyone"
 PUBLIC_DEMO = os.environ.get("HR_PUBLIC_DEMO", "") == PUBLIC_DEMO_ACK
 
-# Browser origins allowed to call this API. The dashboard is served from
-# somewhere else in a hosted deployment, so this cannot be a constant.
+# Browser origins allowed to call this API from somewhere else. The server
+# serves the built dashboard itself, from its own origin, which needs no entry
+# here; this is for `npm run dev` on 5173, or a dashboard hosted elsewhere.
 #
 # A bare hostname is accepted and read as https. Hosting platforms that wire
 # services together supply the host without a scheme, and a browser always

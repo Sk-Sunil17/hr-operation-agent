@@ -437,7 +437,7 @@ python3 -m hr_agent.cli walkthrough acme_labs
 ```
 
 Nine steps, narrated, against the real database — then open
-<http://localhost:5173> and everything it did is sitting there to click through.
+<http://127.0.0.1:4000> and everything it did is sitting there to click through.
 
 For the same material as a reference rather than a story, see
 [HOW_IT_WORKS.md](HOW_IT_WORKS.md). For why it was built this way, see

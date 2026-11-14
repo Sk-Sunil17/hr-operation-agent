@@ -708,11 +708,28 @@ class Registry:
 
         tool = self.get(plan["adapter"])
         args = db.loads(plan["args_json"], {})
-        receipt = tool.act(plan["operation"], actor=actor, idempotency_key=plan["idempotency_key"], **args)
+
+        # Claim the plan before acting, so two commits racing on the same plan
+        # cannot both reach the outside system.
+        claimed = self.conn.execute(
+            "UPDATE action_plan SET status = 'committed', committed_at = ? "
+            "WHERE tenant_id = ? AND id = ? AND status = 'prepared'",
+            (db.now(), self.cfg.tenant_id, plan_id),
+        ).rowcount
+        if not claimed:
+            return self.commit(plan_id, actor=actor, authorised=authorised)
+        try:
+            receipt = tool.act(plan["operation"], actor=actor, idempotency_key=plan["idempotency_key"], **args)
+        except Exception:
+            self.conn.execute(
+                "UPDATE action_plan SET status = 'prepared', committed_at = NULL WHERE tenant_id = ? AND id = ?",
+                (self.cfg.tenant_id, plan_id),
+            )
+            raise
 
         self.conn.execute(
-            "UPDATE action_plan SET status = 'committed', committed_at = ?, receipt_json = ? WHERE id = ?",
-            (db.now(), json.dumps(receipt, sort_keys=True), plan_id),
+            "UPDATE action_plan SET receipt_json = ? WHERE id = ?",
+            (json.dumps(receipt, sort_keys=True), plan_id),
         )
         self.conn.execute(
             "INSERT INTO idempotency_ledger (tenant_id, key, plan_id, first_seen_at, result_json) VALUES (?,?,?,?,?) "

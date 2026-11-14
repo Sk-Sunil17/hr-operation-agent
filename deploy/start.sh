@@ -21,7 +21,7 @@ python -m hr_agent.cli init
 
 if [ ! -f "$MARKER" ]; then
   echo "first boot: seeding a morning of traffic for each company..."
-  for tenant in acme_labs meridian_group harbour_clinic; do
+  for tenant in $(python -c "from hr_agent.packs import loader; print(' '.join(loader.tenant_ids()))"); do
     python -m hr_agent.cli demo "$tenant" --reset
   done
   date -u +"%Y-%m-%dT%H:%M:%SZ" > "$MARKER"

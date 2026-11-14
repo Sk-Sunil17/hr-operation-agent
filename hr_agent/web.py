@@ -1,4 +1,9 @@
-"""The JSON API. The dashboard is a separate client and talks only to this.
+"""The JSON API, and the server that hands out the dashboard.
+
+One process serves both: `/api/*` is the JSON API and every other path is the
+built React dashboard from `client/dist`. Same origin, so the dashboard needs no
+API address and the browser needs no CORS. The dashboard still talks only to
+the API.
 
 Everything a screen needs is here, and nothing else. Three rules:
 
@@ -14,13 +19,17 @@ Everything a screen needs is here, and nothing else. Three rules:
 
 from __future__ import annotations
 
+import os
 import sqlite3
+from collections.abc import Iterator
+from contextlib import closing, contextmanager
 from datetime import date
 from typing import Any
 
-from fastapi import Body, FastAPI, Header, HTTPException, Query
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from . import approvals, audit, auth, classify, config, db, engine, facts as facts_mod
 from . import interviews, kernel, metrics, policy, redact, scheduler, tools
@@ -32,11 +41,28 @@ from .packs.validate import validate as validate_pack
 # off, and the server refuses a public bind in that state.
 DEMO_ROLE_SWITCHING = not auth.enabled()
 
+# Reachable without a session even when authentication is on: what a sign-in
+# screen needs before anyone has signed in, and nothing that names a person.
+OPEN_API_PATHS = {
+    "/api/health", "/api/tenants", "/api/auth/login", "/api/auth/me",
+    "/api/reason-codes", "/api/jobs", "/api/docs", "/api/docs/oauth2-redirect",
+}
+
+
+def _date(value: str | None, name: str) -> date | None:
+    if value is None or value == "":
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise HTTPException(400, f"{name} must be a date like 2026-03-31, not {value!r}") from exc
+
 
 def create_app(*, db_path: str | None = None) -> FastAPI:
     app = FastAPI(title="HR Operations Agent", version="0.1.0", docs_url="/api/docs")
 
-    # The dashboard is served by Vite in development, on another port.
+    # Only needed when the dashboard runs under `npm run dev` on another port;
+    # the built dashboard is served from this origin.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=config.CORS_ORIGINS,
@@ -67,8 +93,29 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
             raise HTTPException(403, "that session belongs to another company")
         return session.person_id
 
-    def connect() -> sqlite3.Connection:
-        return db.open_db(db_path)
+    def signed_in(request: Request) -> None:
+        """With authentication on, every company-scoped route needs a session for
+        that company. Checking only the routes that act left every read open:
+        drafts, messages and the audit trail, to anyone without a token."""
+        path = request.url.path
+        if not auth.enabled() or not path.startswith("/api/") or path in OPEN_API_PATHS:
+            return
+        tenant = request.query_params.get("tenant")
+        if not tenant:
+            raise HTTPException(401, "sign in first")
+        who(tenant, None, request.headers.get("authorization"))
+
+    app.router.dependencies.append(Depends(signed_in))
+
+    @contextmanager
+    def connect() -> Iterator[sqlite3.Connection]:
+        # A sqlite3 connection used as a context manager only commits; it is
+        # never closed. Close it, so a request does not leave one behind.
+        conn = db.open_db(db_path)
+        try:
+            yield conn
+        finally:
+            conn.close()
 
     def tenant_config(tenant: str) -> ResolvedConfig:
         if tenant not in cache:
@@ -120,14 +167,19 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
         if not auth.enabled():
             raise HTTPException(400, "authentication is off; this build uses the demo role switcher")
         tenant_config(tenant)
+        email = str(body.get("email", ""))
+        if wait := auth.locked_out(tenant, email):
+            return JSONResponse(
+                status_code=429, headers={"Retry-After": str(wait)},
+                content={"error": f"too many failed sign-ins; try again in {max(1, wait // 60)} minute(s)"},
+            )
         with connect() as conn:
             try:
-                token = auth.sign_in(
-                    conn, tenant_id=tenant,
-                    email=str(body.get("email", "")), password=str(body.get("password", "")),
-                )
+                token = auth.sign_in(conn, tenant_id=tenant, email=email, password=str(body.get("password", "")))
             except auth.AuthError as exc:
+                auth.record_failure(tenant, email)
                 return JSONResponse(status_code=401, content={"error": str(exc)})
+            auth.clear_failures(tenant, email)
             return {"token": token, "expires_in": auth.SESSION_SECONDS}
 
     @app.get("/api/auth/me")
@@ -248,8 +300,14 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
         return {"items": out}
 
     @app.get("/api/policies/search")
-    def policy_search(tenant: str, q: str, as_person: str | None = None) -> dict[str, Any]:
+    def policy_search(
+        tenant: str, q: str, as_person: str | None = None, authorization: str | None = Header(default=None)
+    ) -> dict[str, Any]:
         cfg = tenant_config(tenant)
+        if as_person:
+            # Scoping shows which versions apply to a person, so it may only
+            # ever be the signed-in person's own scope.
+            as_person = who(tenant, as_person, authorization)
         with connect() as conn:
             person = facts_mod.person_by_id(cfg, as_person) if as_person else None
             return policy.search(conn, cfg, q, person=person, limit=5).as_dict()
@@ -286,13 +344,17 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
     # ---------------------------------------------------------------- the agent
 
     @app.post("/api/explain")
-    def explain(tenant: str, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    def explain(
+        tenant: str, body: dict[str, Any] = Body(...), authorization: str | None = Header(default=None)
+    ) -> dict[str, Any]:
         """What would happen, and why. Runs nothing and changes nothing."""
         cfg = tenant_config(tenant)
         message = str(body.get("message", "")).strip()
         if not message:
             raise HTTPException(400, "a message is required")
-        requester_id = str(body.get("requester", ""))
+        # The facts gathered are the requester's own records, so with
+        # authentication on they can only be the signed-in person's.
+        requester_id = who(tenant, str(body.get("requester", "")), authorization) or ""
         person_or_404(cfg, requester_id)
 
         with connect() as conn:
@@ -381,14 +443,16 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
             rows = db.rows(conn, sql, params)
             more = len(rows) > limit
             rows = rows[:limit]
+            ids = [r["id"] for r in rows]
             inbound = {
                 r["work_item_id"]: r["body"]
                 for r in db.rows(
                     conn,
-                    "SELECT work_item_id, body FROM message_log WHERE tenant_id = ? AND direction = 'inbound'",
-                    (cfg.tenant_id,),
+                    "SELECT work_item_id, body FROM message_log WHERE tenant_id = ? AND direction = 'inbound' "
+                    f"AND work_item_id IN ({','.join('?' for _ in ids)})",
+                    (cfg.tenant_id, *ids),
                 )
-            }
+            } if ids else {}
             names = {p.id: p.name for p in cfg.people}
             return {
                 "items": [
@@ -546,12 +610,11 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
         month's interviews answers a question nobody asked.
         """
         cfg = tenant_config(tenant)
+        # `from=` with no value means "from the beginning", as it always has.
+        start = date.today() if from_date is None else _date(from_date, "from")
+        end = _date(to_date, "to")
         with connect() as conn:
-            rows = interviews.scheduled(
-                conn, cfg,
-                from_date=from_date if from_date is not None else date.today(),
-                to_date=to_date, status=status,
-            )
+            rows = interviews.scheduled(conn, cfg, from_date=start, to_date=end, status=status)
             stages = {s.id: s.label for s in cfg.interviews.stages}
             return {
                 "items": [
@@ -577,7 +640,7 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
         tenant: str,
         panel: str = Query(..., description="comma-separated person ids"),
         on: str | None = None,
-        minutes: int | None = None,
+        minutes: int | None = Query(None, ge=1, le=8 * 60),
         stage: str | None = None,
     ) -> dict[str, Any]:
         """When these people could be interviewed together. Reads; books nothing.
@@ -604,7 +667,7 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
                 stage_label=found.label if found else "Interview",
                 minutes=minutes or cfg.interviews.minutes_for(found),
                 panel_ids=people,
-                on=date.fromisoformat(on) if on else None,
+                on=_date(on, "on"),
             )
             proposal = interviews.propose(
                 conn, cfg, request=request, on=date.today(),
@@ -626,7 +689,7 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
     def run_job(job: str, tenant: str, on: str | None = None) -> dict[str, Any]:
         """Run one scheduled check, or all of them. They report and change nothing."""
         cfg = tenant_config(tenant)
-        as_of = date.fromisoformat(on) if on else None
+        as_of = _date(on, "on")
         with connect() as conn:
             try:
                 results = (
@@ -686,35 +749,35 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
         new policy takes effect -- before it does.
         """
         cfg = tenant_config(tenant)
-        conn = db.open_db(":memory:")
-        db.insert(conn, "tenant", {
-            "id": cfg.tenant_id, "name": cfg.manifest.name, "pack_path": "packs",
-            "config_hash": cfg.config_hash, "active": 1, "created_at": db.now(),
-        })
-        for person in cfg.people:
-            db.insert(conn, "employee", {
-                "tenant_id": cfg.tenant_id, "id": person.id, "name": person.name, "email": person.email,
-                "manager_id": person.manager_id, "entity": person.entity,
-                "employment_type": person.employment_type, "segment_keys": person.segment_keys,
-                "roles": person.roles, "timezone": person.timezone, "start_date": person.start_date,
-                "end_date": person.end_date, "active": int(person.active),
+        as_of = _date(on, "on")
+        with closing(db.open_db(":memory:")) as conn:
+            db.insert(conn, "tenant", {
+                "id": cfg.tenant_id, "name": cfg.manifest.name, "pack_path": "packs",
+                "config_hash": cfg.config_hash, "active": 1, "created_at": db.now(),
             })
-        policy.load_corpus(conn, cfg)
+            for person in cfg.people:
+                db.insert(conn, "employee", {
+                    "tenant_id": cfg.tenant_id, "id": person.id, "name": person.name, "email": person.email,
+                    "manager_id": person.manager_id, "entity": person.entity,
+                    "employment_type": person.employment_type, "segment_keys": person.segment_keys,
+                    "roles": person.roles, "timezone": person.timezone, "start_date": person.start_date,
+                    "end_date": person.end_date, "active": int(person.active),
+                })
+            policy.load_corpus(conn, cfg)
 
-        as_of = date.fromisoformat(on) if on else None
-        results, reached = [], set()
-        for case in cfg.golden_cases:
-            outcome = kernel.run(conn, cfg, message=case.message, requester_id=case.requester,
-                                 attachment=case.attachment, on=as_of)
-            reached.add(outcome.rule_id)
-            results.append({
-                "id": case.id, "message": case.message, "requester": case.requester,
-                "expected": f"{case.expect_rule}/{case.expect_mode}",
-                "got": f"{outcome.rule_id}/{outcome.mode}",
-                "pass": outcome.rule_id == case.expect_rule and outcome.mode == case.expect_mode,
-                "verified": outcome.verify_passed, "note": case.note,
-                "cited": [f"{c.doc_id} v{c.version} s{c.section_id}" for c in outcome.citations],
-            })
+            results, reached = [], set()
+            for case in cfg.golden_cases:
+                outcome = kernel.run(conn, cfg, message=case.message, requester_id=case.requester,
+                                     attachment=case.attachment, on=as_of)
+                reached.add(outcome.rule_id)
+                results.append({
+                    "id": case.id, "message": case.message, "requester": case.requester,
+                    "expected": f"{case.expect_rule}/{case.expect_mode}",
+                    "got": f"{outcome.rule_id}/{outcome.mode}",
+                    "pass": outcome.rule_id == case.expect_rule and outcome.mode == case.expect_mode,
+                    "verified": outcome.verify_passed, "note": case.note,
+                    "cited": [f"{c.doc_id} v{c.version} s{c.section_id}" for c in outcome.citations],
+                })
         passed = sum(1 for r in results if r["pass"])
         return {
             "tenant": cfg.tenant_id, "on": (as_of or date.today()).isoformat(),
@@ -723,14 +786,62 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
             "rules_never_reached": sorted({r.id for r in cfg.rules} - reached),
         }
 
+    _serve_dashboard(app)
     return app
+
+
+_NOT_BUILT = """<!doctype html><meta charset="utf-8"><title>HR Operations Agent</title>
+<body style="font-family:system-ui;max-width:40rem;margin:4rem auto;line-height:1.5">
+<h1>The agent is running; the dashboard is not built yet</h1>
+<p>Build it once, then reload this page:</p>
+<pre>cd client &amp;&amp; npm install &amp;&amp; npm run build</pre>
+<p>The API is already answering at <a href="/api/health">/api/health</a>
+and documented at <a href="/api/docs">/api/docs</a>.</p>
+</body>"""
+
+
+def _serve_dashboard(app: FastAPI) -> None:
+    """Everything that is not an API route is the dashboard.
+
+    Registered after every API route, so it can only catch what they did not.
+    """
+    dist = config.DASHBOARD_DIR.resolve()
+    index = dist / "index.html"
+
+    @app.middleware("http")
+    async def security_headers(request, call_next):
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        return response
+
+    # An unknown API path is a JSON 404, never the dashboard's HTML: a client
+    # expecting JSON should not get a page that parses as an error elsewhere.
+    @app.api_route("/api/{rest:path}", methods=["GET", "POST"], include_in_schema=False)
+    def no_such_endpoint(rest: str) -> None:
+        raise HTTPException(404, f"no such endpoint: /api/{rest}")
+
+    # Content-hashed file names, so a new build never collides with a cached one.
+    app.mount("/assets", StaticFiles(directory=dist / "assets", check_dir=False), name="assets")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    def dashboard(path: str):
+        if not index.is_file():
+            return HTMLResponse(_NOT_BUILT, status_code=503)
+        if path:
+            candidate = (dist / path).resolve()
+            if candidate.is_file() and candidate.is_relative_to(dist):
+                return FileResponse(candidate)
+        # Any other path is a screen inside the single-page app.
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
 
 
 app = create_app()
 
 
 def serve(host: str = "127.0.0.1", port: int = 4000, db_path: str | None = None, reload: bool = False) -> None:
-    """Start the API. Refuses a public bind while role switching is on.
+    """Start the API and the dashboard. Refuses a public bind while role switching is on.
 
     `reload` is on by default from the CLI: a long-running dev server that has
     quietly kept old code loaded reports stale answers, which is a confusing
@@ -748,6 +859,11 @@ def serve(host: str = "127.0.0.1", port: int = 4000, db_path: str | None = None,
             f'  HR_PUBLIC_DEMO="{config.PUBLIC_DEMO_ACK}"\n'
             "A truthy value is not enough, on purpose: nobody should be able to switch "
             "this off by accident or by copying a deployment template."
+        )
+    if auth.enabled() and not (os.environ.get("HR_SESSION_SECRET") or os.environ.get("HR_AUTH_SECRET")):
+        print(
+            "WARNING: authentication is on but HR_AUTH_SECRET is not set. Sessions are "
+            "signed with a key that changes on every restart, so everyone is signed out then."
         )
     if config.PUBLIC_DEMO and DEMO_ROLE_SWITCHING:
         print(
