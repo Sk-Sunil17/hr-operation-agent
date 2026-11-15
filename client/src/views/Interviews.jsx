@@ -68,28 +68,25 @@ export default function InterviewsView({ tenant, people, onError }) {
       <aside className="side">
         <section className="card">
           <h2>This company's scheduling rules</h2>
-          <p className="hint" style={{ marginTop: 0 }}>
-            Every number here is configuration, not code. The agent does no working-time
-            arithmetic: the notice period is this company's courtesy to a candidate, not a legal
-            calculation.
-          </p>
           {settings && (
-            <dl className="defs">
-              <dt>Notice to a candidate</dt>
-              <dd>at least {settings.min_notice_hours} hours</dd>
-              <dt>Clear either side</dt>
-              <dd>{settings.buffer_minutes} minutes</dd>
-              <dt>Most per interviewer, per day</dt>
-              <dd>{settings.max_per_day_per_interviewer}</dd>
-              <dt>Working hours</dt>
-              <dd>
-                {data.working_hours.start}–{data.working_hours.end} {data.timezone}
-              </dd>
-              <dt>Working days</dt>
-              <dd>{data.working_hours.days.length} a week</dd>
-              <dt>Tells the candidate</dt>
-              <dd>{settings.notify_candidate ? 'yes, with a calendar invitation' : 'no'}</dd>
-            </dl>
+            <div className="defs">
+              <dl>
+                {[
+                  ['Notice to a candidate', `at least ${settings.min_notice_hours} hours`],
+                  ['Gap between interviews', `${settings.buffer_minutes} minutes`],
+                  ['Most per interviewer, per day', settings.max_per_day_per_interviewer],
+                  ['Working hours', `${data.working_hours.start}–${data.working_hours.end}`],
+                  ['Time zone', data.timezone],
+                  ['Working days', `${data.working_hours.days.length} a week`],
+                  ['Invites the candidate', settings.notify_candidate ? 'Yes' : 'No'],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <dt>{label}</dt>
+                    <dd>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
           )}
           {stages.length > 0 && (
             <>
@@ -172,7 +169,7 @@ export default function InterviewsView({ tenant, people, onError }) {
                 </>
               )}
               <p className="hint">
-                Read from <code>{found.calendar}</code>. Nothing was booked and nobody was told.
+                Nothing was booked and nobody was told.
               </p>
             </>
           )}
@@ -235,7 +232,6 @@ export default function InterviewsView({ tenant, people, onError }) {
                       <span className="rec-meta">
                         {row.location || 'Location not set'} · {row.timezone}
                       </span>
-                      {row.calendar_ref && <span className="tag tag-mono">{row.calendar_ref}</span>}
                     </span>
                     {row.supersedes && (
                       <span className="rec-bottom">

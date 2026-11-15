@@ -81,7 +81,10 @@ say *"I'd have to check that one"*. Nobody expects you to know everything.
 enquiries, policy lookup, HR administration (changes to records), document and
 form intake, onboarding readiness, offboarding checklists, and interview
 scheduling. Every one of those is in the demo below except offboarding and the
-nightly checks, which show up on the **Requests** screen if anybody asks.
+nightly checks. If anybody asks about leavers: as Hana, open **Requests**, click
+**Start a leaver**, pick Tomas Brandt, give a last day and a reason, then
+**Prepare checklist**. The agent drafts the departure checklist for approval and
+says plainly that it contacted nobody and closed no account.
 
 ---
 

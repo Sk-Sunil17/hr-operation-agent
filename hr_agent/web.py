@@ -32,7 +32,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import approvals, audit, auth, classify, config, db, engine, facts as facts_mod
-from . import interviews, kernel, metrics, policy, redact, rulebook, scheduler, tools
+from . import cases, interviews, kernel, metrics, policy, redact, rulebook, scheduler, tools
 from .packs import loader
 from .packs.models import MODES, ResolvedConfig, restriction
 from .packs.validate import validate as validate_pack
@@ -316,6 +316,40 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
             except rulebook.RuleChangeError as exc:
                 return JSONResponse(status_code=409, content={"error": str(exc)})
 
+    @app.get("/api/cases/exit")
+    def exit_cases(tenant: str) -> dict[str, Any]:
+        cfg = tenant_config(tenant)
+        with connect() as conn:
+            return {"items": cases.open_exits(conn, cfg)}
+
+    @app.post("/api/cases/exit")
+    def open_exit_case(
+        tenant: str, body: dict[str, Any] = Body(...), authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        cfg = tenant_config(tenant)
+        actor = who(tenant, str(body.get("actor", "")), authorization)
+        with connect() as conn:
+            try:
+                return cases.open_exit(
+                    conn, cfg, subject_id=str(body.get("subject", "")), actor_id=actor or "",
+                    last_day=_date(str(body.get("last_day") or ""), "last_day"), note=str(body.get("note", "")),
+                )
+            except cases.CaseError as exc:
+                return JSONResponse(status_code=409, content={"error": str(exc)})
+
+    @app.post("/api/cases/exit/{case_id}/close")
+    def close_exit_case(
+        case_id: str, tenant: str, body: dict[str, Any] = Body(...),
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        cfg = tenant_config(tenant)
+        actor = who(tenant, str(body.get("actor", "")), authorization)
+        with connect() as conn:
+            try:
+                return cases.close_exit(conn, cfg, case_id=case_id, actor_id=actor or "", note=str(body.get("note", "")))
+            except cases.CaseError as exc:
+                return JSONResponse(status_code=409, content={"error": str(exc)})
+
     @app.post("/api/rules/{rule_id}/preview")
     def preview_rule(rule_id: str, tenant: str, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
         """Which of the company's own example requests a change would handle
@@ -343,6 +377,7 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
             live = {v.version for v in policy.in_force(doc, on=today, person=None)}
             out.append({
                 "id": doc.id, "title": doc.title, "owner_role": doc.owner_role,
+                "owner_label": cfg.approvals.roles.get(doc.owner_role or "", doc.owner_role),
                 "review_months": doc.review_months,
                 "versions": [
                     {
@@ -354,6 +389,26 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
                 ],
             })
         return {"items": out}
+
+    @app.get("/api/policies/{doc_id}/{version}")
+    def policy_text(tenant: str, doc_id: str, version: str) -> dict[str, Any]:
+        cfg = tenant_config(tenant)
+        doc = next((d for d in cfg.policies if d.id == doc_id), None)
+        if doc is None:
+            raise HTTPException(404, f"no policy {doc_id}")
+        live = {v.version for v in policy.in_force(doc, on=date.today(), person=None)}
+        if version not in live:
+            raise HTTPException(404, f"{doc.title} version {version} is not in force today")
+        with connect() as conn:
+            rows = conn.execute(
+                "SELECT section_id, heading, body FROM policy_section"
+                " WHERE tenant_id = ? AND doc_id = ? AND version = ? ORDER BY ordinal",
+                (tenant, doc_id, version),
+            ).fetchall()
+        return {
+            "id": doc.id, "title": doc.title, "version": version,
+            "sections": [dict(r) for r in rows],
+        }
 
     @app.get("/api/policies/search")
     def policy_search(

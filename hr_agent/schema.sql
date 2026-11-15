@@ -274,6 +274,7 @@ CREATE TABLE IF NOT EXISTS hr_case (
   owner_id    TEXT,
   status      TEXT NOT NULL,
   taken_over  INTEGER NOT NULL DEFAULT 0,   -- the agent stops for good on this case
+  last_day    TEXT,
   opened_at   TEXT NOT NULL,
   closed_at   TEXT
 );

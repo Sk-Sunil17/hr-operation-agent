@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { api } from '../api.js';
 import { RecordList, useLoad } from '../shared.jsx';
-import { KIND, areaOf, statusOf, when } from '../format.js';
+import { kindOf, statusOf, when } from '../format.js';
 import RequestSummary from './Request.jsx';
+import Leavers from './Leavers.jsx';
 
 const FILTERS = [
   ['all', 'All', null],
@@ -14,11 +15,11 @@ const FILTERS = [
   ['refused', 'Declined', 'refused'],
 ];
 
-export default function ItemsView({ tenant, actor, me, people, onError }) {
+export default function ItemsView({ tenant, actor, me, people, onError, onNotice, onChanged }) {
   const mine = !me?.is_hr;
   const [filter, setFilter] = useState('all');
   const [selected, setSelected] = useState(null);
-  const [list, loading] = useLoad(
+  const [list, loading, reloadList] = useLoad(
     () => api.workItems(tenant, mine ? { requester: actor } : {}),
     [tenant, actor, mine],
     onError,
@@ -41,7 +42,7 @@ export default function ItemsView({ tenant, actor, me, people, onError }) {
       id: i.id,
       title: i.message || 'Request',
       status: statusOf(i.status),
-      meta: `${mine ? KIND[areaOf(i.rule_id)] || '' : i.requester_name} · ${when(i.created_at)}`,
+      meta: `${mine ? kindOf(i.rule_id) || '' : i.requester_name} · ${when(i.created_at)}`,
     }));
 
   return (
@@ -65,6 +66,22 @@ export default function ItemsView({ tenant, actor, me, people, onError }) {
           </div>
           <RecordList rows={rows} selectedId={selected} onSelect={setSelected} empty={loading ? 'Loading…' : 'Nothing here yet.'} />
         </section>
+        {!mine && (
+          <Leavers
+            tenant={tenant}
+            actor={actor}
+            people={people}
+            onError={onError}
+            onNotice={onNotice}
+            onChecklist={async (message) => {
+              const result = await api.chat(tenant, { message, requester: actor });
+              setFilter('all');
+              setSelected(result.item.id);
+              reloadList();
+              onChanged();
+            }}
+          />
+        )}
       </aside>
 
       <main className="main">

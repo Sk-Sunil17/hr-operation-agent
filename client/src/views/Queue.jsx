@@ -113,7 +113,9 @@ export default function QueueView({ tenant, actor, me, onError, onNotice, onChan
                     <ul className="reasons">
                       {open.plans.map((p) => (
                         <li key={p.id} style={{ whiteSpace: 'pre-wrap' }}>
-                          {p.preview_text}
+                          {/message$/.test(p.operation)
+                            ? `${p.preview_text.split('\n')[0].replace(/:$/, '')} — the reply above`
+                            : p.preview_text}
                         </li>
                       ))}
                     </ul>

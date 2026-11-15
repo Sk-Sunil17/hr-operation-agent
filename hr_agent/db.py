@@ -18,6 +18,7 @@ from . import config
 
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
 SCHEMA_VERSION = "2"
+_ADDED_COLUMNS = (("hr_case", "last_day"),)
 
 # Paths whose schema this process has already created. Running the schema script
 # is idempotent but not free -- it is twenty CREATE TABLE statements, and the API
@@ -44,6 +45,10 @@ def connect(path: Path | str | None = None) -> sqlite3.Connection:
 def init(conn: sqlite3.Connection) -> None:
     """Create the schema if it is not there. Safe to call repeatedly."""
     conn.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+    # CREATE TABLE IF NOT EXISTS leaves an older table as it was.
+    for table, column in _ADDED_COLUMNS:
+        if column not in {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
     conn.execute(
         "INSERT INTO schema_meta (key, value) VALUES ('version', ?) "
         "ON CONFLICT(key) DO UPDATE SET value = excluded.value",

@@ -41,7 +41,7 @@ export const RULE_TITLES = {
   E1: 'Routine policy questions',
   E2: 'Questions about personal circumstances',
   E3: 'Questions no policy covers',
-  A1: 'Changes to your own record',
+  A1: 'An employee updating their own record',
   A2: 'Changes to a field no system owns',
   A3: "A manager changing a report's record",
   A4: "HR changing someone's record",
@@ -85,6 +85,7 @@ export const KIND = {
   interviews: 'Interview',
   safeguards: 'Sensitive',
 };
+export const kindOf = (ruleId) => (/^X/.test(ruleId || '') ? 'Leaver' : KIND[areaOf(ruleId)]);
 
 export const STATUS = {
   answered: { label: 'Answered', tone: 'ok' },

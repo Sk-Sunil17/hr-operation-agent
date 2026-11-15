@@ -2,7 +2,7 @@
 // came from, and what happens next. How the agent got there is one click away.
 
 import { AuditTrail, Checks, Rail } from '../shared.jsx';
-import { KIND, areaOf, ruleTitle, statusOf, when } from '../format.js';
+import { kindOf, ruleTitle, statusOf, when } from '../format.js';
 
 const OUTCOME = {
   answered: ['outcome-ok', 'Answered', 'Sent straight away.'],
@@ -36,7 +36,7 @@ export default function RequestSummary({ data, people = [], fresh = false, withT
       <header className="detail-head">
         <div className="detail-title">
           <p className="eyebrow">
-            {KIND[areaOf(item.rule_id)] || 'Request'} · {item.requester_name} · {when(item.created_at)}
+            {kindOf(item.rule_id) || 'Request'} · {item.requester_name} · {when(item.created_at)}
           </p>
           <h1>{asked}</h1>
         </div>

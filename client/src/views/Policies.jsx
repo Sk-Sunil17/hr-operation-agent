@@ -1,178 +1,169 @@
-// The policy library, and what retrieval would actually quote.
+// The company's policies: search them in plain words, or open one and read it.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../api.js';
 import { useBusy, useLoad } from '../shared.jsx';
 
-const STATUS_TAG = {
-  in_force: 'tag-ok',
-  retired: 'tag-err',
-  scheduled: 'tag-wait',
-  draft: '',
+const longDate = (iso) =>
+  iso ? new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }) : '';
+
+const scopeText = (scope) => {
+  const parts = Object.entries(scope || {}).map(([k, v]) => `${k.replace(/_/g, ' ')} ${Array.isArray(v) ? v.join(' or ') : v}`);
+  return parts.length ? parts.join(', ') : 'Everyone';
 };
 
-export default function PoliciesView({ tenant, actor, people, onError }) {
+function Body({ text }) {
+  const blocks = text.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
+  return blocks.map((block, i) => {
+    const lines = block.split('\n');
+    if (lines.every((l) => /^\s*([-*]|\d+\.)\s+/.test(l))) {
+      return (
+        <ul key={i} className="policy-list">
+          {lines.map((l, j) => (
+            <li key={j}>{l.replace(/^\s*([-*]|\d+\.)\s+/, '')}</li>
+          ))}
+        </ul>
+      );
+    }
+    return <p key={i}>{lines.join(' ')}</p>;
+  });
+}
+
+export default function PoliciesView({ tenant, actor, me, onError }) {
   const [data] = useLoad(() => api.policies(tenant), [tenant], onError);
   const [query, setQuery] = useState('');
-  const [scoped, setScoped] = useState(true);
   const [result, setResult] = useState(null);
+  const [open, setOpen] = useState(null);
   const [busy, run] = useBusy(onError);
 
-  const search = () => {
+  const search = (e) => {
+    e?.preventDefault();
     if (!query.trim()) return;
-    run('search', async () => setResult(await api.policySearch(tenant, query, scoped ? actor : null)));
+    run('search', async () => setResult(await api.policySearch(tenant, query.trim(), actor)));
   };
 
-  const actorName = people.find((p) => p.id === actor)?.name || actor;
+  useEffect(() => {
+    if (open) document.getElementById('policy-reader')?.scrollIntoView({ behavior: 'smooth' });
+  }, [open]);
+
+  const read = (id, version) => run(`read-${id}`, async () => setOpen(await api.policyText(tenant, id, version)));
+
+  const library = (data?.items || [])
+    .map((doc) => ({ ...doc, live: doc.versions.filter((v) => v.quotable_today) }))
+    .filter((doc) => doc.live.length);
 
   return (
-    <div className="layout">
-      <aside className="side">
-        <section className="card">
-          <h2>What would be quoted</h2>
-          <label className="field-label" htmlFor="q">
-            Search the corpus
-          </label>
-          <input
-            id="q"
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && search()}
-            placeholder="carry over unused leave"
-          />
-          <label className="hint" style={{ display: 'block', marginTop: 10 }}>
-            <input
-              type="checkbox"
-              checked={scoped}
-              onChange={(e) => setScoped(e.target.checked)}
-              style={{ width: 'auto', minHeight: 0, marginRight: 6 }}
-            />
-            scope to {actorName}
-          </label>
-          <button
-            type="button"
-            className="btn btn-primary btn-block"
-            style={{ marginTop: 12 }}
-            onClick={search}
-            disabled={Boolean(busy)}
-          >
-            {busy === 'search' ? 'Searching…' : 'Search'}
-          </button>
-          <p className="hint">
-            Retrieval is lexical, over sections, and only over versions in force today. That is a
-            feature: you can be told exactly why a passage matched.
+    <div className="layout layout-wide">
+      <div className="page-head">
+        <div>
+          <h1>Policies</h1>
+          <p>
+            The policies in force today. Ask a question in your own words to find the passage that
+            answers it, or open a policy to read it in full.
           </p>
-        </section>
+        </div>
+      </div>
 
-        <section className="card">
-          <h2>Version rules</h2>
-          <p className="hint" style={{ marginTop: 0 }}>
-            Only a version whose status is <strong>in force</strong> and whose dates cover today can
-            ever be quoted. Retired and scheduled versions are invisible to retrieval.
-          </p>
-          <p className="hint">
-            Two unscoped versions in force for one policy is a data fault. The agent refuses to
-            answer rather than choosing one.
-          </p>
-        </section>
-      </aside>
+      <form className="policy-search" onSubmit={search}>
+        <input
+          type="search"
+          aria-label="Search the policies"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="e.g. Can I carry over unused leave?"
+        />
+        <button type="submit" className="btn btn-primary" disabled={Boolean(busy) || !query.trim()}>
+          {busy === 'search' ? 'Searching…' : 'Search'}
+        </button>
+      </form>
 
-      <main className="main">
-        {result && (
-          <section className="panel">
-            <div className="panel-head">
-              <h2>Search result</h2>
-              <span className="tag">
-                {result.sections_searched} section{result.sections_searched === 1 ? '' : 's'} searched
-              </span>
-            </div>
-            <p className="hint" style={{ marginTop: 0 }}>
-              Terms after dropping question frames and stopwords:{' '}
-              <code>{(result.query_terms || []).join(', ')}</code>
-            </p>
-            {result.conflict ? (
-              <ul className="reasons">
-                {result.conflicts.map((c) => (
-                  <li key={c}>{c}</li>
-                ))}
-              </ul>
-            ) : result.citations?.length ? (
-              <div className="sections">
-                {result.citations.map((c) => (
-                  <div key={`${c.doc_id}-${c.section_id}`} className="section-item">
-                    <span className="section-score">{c.score.toFixed(2)}</span>
-                    <h3>
-                      {c.doc_title} v{c.version} · section {c.section_id} — {c.heading}
-                    </h3>
-                    <p style={{ fontSize: 14 }}>{c.quoted_text}</p>
-                    <p className="hint hint-tight">
-                      matched: {(c.matched_terms || []).map((t) => (
-                        <span key={t} className="tag tag-mono">
-                          {t}
-                        </span>
-                      ))}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="empty-list">Nothing in force covers this. The agent would hand it to a person.</p>
-            )}
-          </section>
-        )}
-
+      {result && (
         <section className="panel">
-          <h2>The corpus</h2>
-          <div className="table-scroll">
-            <table className="grid">
-              <thead>
-                <tr>
-                  <th>Policy</th>
-                  <th>Version</th>
-                  <th>Status</th>
-                  <th>From</th>
-                  <th>To</th>
-                  <th>Applies to</th>
-                  <th>Quotable today</th>
-                  <th>Owner</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(data?.items || []).flatMap((doc) =>
-                  doc.versions.map((v, i) => (
-                    <tr key={`${doc.id}-${v.version}`} className={v.quotable_today ? 'is-open' : undefined}>
-                      <td>{i === 0 ? `${doc.title}` : ''}</td>
-                      <td>
-                        <code>{v.version}</code>
-                      </td>
-                      <td>
-                        <span className={`tag ${STATUS_TAG[v.status] || ''}`}>{v.status.replace('_', ' ')}</span>
-                      </td>
-                      <td>{v.effective_from || '—'}</td>
-                      <td>{v.effective_to || '—'}</td>
-                      <td>
-                        {Object.keys(v.scope || {}).length
-                          ? Object.entries(v.scope)
-                              .map(([k, val]) => `${k} = ${val}`)
-                              .join(', ')
-                          : 'everyone'}
-                      </td>
-                      <td>{v.quotable_today ? 'yes' : 'no'}</td>
-                      <td>{i === 0 ? doc.owner_role || '—' : ''}</td>
-                    </tr>
-                  )),
-                )}
-              </tbody>
-            </table>
-          </div>
-          <p className="hint">
-            Rows highlighted in gold are the versions that may be quoted right now. Where two are
-            highlighted for one policy, each is scoped to a different population — that is
-            legitimate, and different from the conflict the agent refuses to answer past.
-          </p>
+          <h2>{result.citations?.length && !result.conflict ? 'What the policies say' : 'No clear answer'}</h2>
+          {result.conflict ? (
+            <p className="empty-list">
+              Two versions of this policy are in force at once, so the agent will not pick one.
+              Please ask HR from the Ask screen.
+            </p>
+          ) : result.citations?.length ? (
+            <div className="sections">
+              {result.citations.map((c) => (
+                <blockquote key={`${c.doc_id}-${c.section_id}`} className="quote">
+                  {c.quoted_text}
+                  <span className="quote-source">
+                    {c.doc_title}, section {c.section_id}: {c.heading} ·{' '}
+                    <button type="button" className="inline-link" onClick={() => read(c.doc_id, c.version)}>
+                      Read the full policy
+                    </button>
+                  </span>
+                </blockquote>
+              ))}
+            </div>
+          ) : (
+            <p className="empty-list">
+              None of the policies in force covers this. Ask HR from the Ask screen and a person
+              will pick it up.
+            </p>
+          )}
         </section>
-      </main>
+      )}
+
+      <section className="policy-grid">
+        {!data && <p className="hint">Loading…</p>}
+        {library.map((doc) =>
+          doc.live.map((v) => {
+            const older = doc.versions.filter((x) => !x.quotable_today).length;
+            return (
+              <article key={`${doc.id}-${v.version}`} className={`policy-card${open?.id === doc.id && open?.version === v.version ? ' policy-card-open' : ''}`}>
+                <h3>{doc.title}</h3>
+                <p className="policy-meta">
+                  Version {v.version} · in force since {longDate(v.effective_from)}
+                </p>
+                <p className="policy-meta">Applies to: {scopeText(v.scope)}</p>
+                {me?.is_hr && (
+                  <p className="policy-meta">
+                    {doc.owner_label ? `Owned by ${doc.owner_label}` : ''}
+                    {doc.owner_label && doc.review_months ? ' · ' : ''}
+                    {doc.review_months ? `reviewed every ${doc.review_months} months` : ''}
+                    {older ? ` · ${older} earlier version${older === 1 ? '' : 's'} no longer quoted` : ''}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-small"
+                  onClick={() => read(doc.id, v.version)}
+                  disabled={busy === `read-${doc.id}`}
+                >
+                  Read policy
+                </button>
+              </article>
+            );
+          }),
+        )}
+      </section>
+
+      {open && (
+        <section className="panel policy-reader" id="policy-reader">
+          <div className="panel-head">
+            <h2>
+              {open.title} <span className="policy-meta">version {open.version}</span>
+            </h2>
+            <button type="button" className="btn btn-small" onClick={() => setOpen(null)}>
+              Close
+            </button>
+          </div>
+          {open.sections
+            .filter((s) => s.body.trim())
+            .map((s) => (
+              <div key={s.section_id} className="policy-section">
+                <h3>
+                  {s.section_id !== '0' && <span className="policy-num">{s.section_id}.</span>} {s.heading}
+                </h3>
+                <Body text={s.body} />
+              </div>
+            ))}
+        </section>
+      )}
     </div>
   );
 }

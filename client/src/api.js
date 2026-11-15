@@ -87,6 +87,8 @@ export const api = {
   changeRule: (tenant, ruleId, body) => request(`/rules/${ruleId}${query({ tenant })}`, json(body)),
   previewRule: (tenant, ruleId, mode) => request(`/rules/${ruleId}/preview${query({ tenant })}`, json({ mode })),
   policies: (tenant) => request(`/policies${query({ tenant })}`),
+  policyText: (tenant, id, version) =>
+    request(`/policies/${encodeURIComponent(id)}/${encodeURIComponent(version)}${query({ tenant })}`),
   policySearch: (tenant, q, asPerson) => request(`/policies/search${query({ tenant, q, as_person: asPerson })}`),
   tools: (tenant) => request(`/tools${query({ tenant })}`),
   redaction: (tenant) => request(`/redaction${query({ tenant })}`),
@@ -94,6 +96,9 @@ export const api = {
 
   explain: (tenant, body) => request(`/explain${query({ tenant })}`, json(body)),
   chat: (tenant, body) => request(`/chat${query({ tenant })}`, json(body)),
+  exitCases: (tenant) => request(`/cases/exit${query({ tenant })}`),
+  openExit: (tenant, body) => request(`/cases/exit${query({ tenant })}`, json(body)),
+  closeExit: (tenant, caseId, body) => request(`/cases/exit/${caseId}/close${query({ tenant })}`, json(body)),
   workItems: (tenant, params) => request(`/work-items${query({ tenant, ...params })}`),
   workItem: (tenant, id) => request(`/work-items/${id}${query({ tenant })}`),
 

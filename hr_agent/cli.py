@@ -14,7 +14,7 @@ from collections.abc import Sequence
 
 from datetime import date
 
-from . import approvals, audit, auth, classify, config, db, engine, facts as facts_mod, interviews, kernel, policy, redact, rulebook, scheduler, tools
+from . import approvals, audit, auth, cases, classify, config, db, engine, facts as facts_mod, interviews, kernel, policy, redact, rulebook, scheduler, tools
 from .packs import loader
 from .packs.models import ResolvedConfig
 from .packs.validate import validate as validate_pack
@@ -1158,6 +1158,22 @@ def cmd_availability(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_leaver(args: argparse.Namespace) -> int:
+    cfg = load(args.tenant)
+    conn = db.open_db()
+    try:
+        opened = cases.open_exit(
+            conn, cfg, subject_id=args.person, actor_id=args.actor,
+            last_day=date.fromisoformat(args.last_day) if args.last_day else None, note=args.note,
+        )
+    except (cases.CaseError, ValueError) as exc:
+        sys.exit(str(exc))
+    heading(f"exit case opened for {opened['subject_name']}")
+    _w(f"  case {opened['case_id']}. Ask the agent \"{opened['subject_name']} is leaving, what happens next?\"")
+    _w("  and it prepares this company's departure checklist for approval.")
+    return 0
+
+
 def cmd_account(args: argparse.Namespace) -> int:
     """Create or reset a sign-in for somebody already in the directory."""
     cfg = load(args.tenant)
@@ -1296,6 +1312,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_account.add_argument("--email", default=None)
     p_account.add_argument("--password", default=None, help="prompted for if omitted")
     p_account.set_defaults(func=cmd_account)
+
+    p_exit = sub.add_parser("leaver", help="open an exit case, so the departure checklist can be prepared")
+    p_exit.add_argument("tenant")
+    p_exit.add_argument("person", help="who is leaving")
+    p_exit.add_argument("--as", dest="actor", required=True, help="the HR person opening the case")
+    p_exit.add_argument("--last-day", default=None, help="YYYY-MM-DD")
+    p_exit.add_argument("--note", required=True, help="why, for the audit trail")
+    p_exit.set_defaults(func=cmd_leaver)
 
     p_int = sub.add_parser("interviews", help="interviews this company has booked")
     p_int.add_argument("tenant")

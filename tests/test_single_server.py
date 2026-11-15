@@ -106,6 +106,17 @@ def test_an_interview_cannot_last_negative_minutes(client):
     assert client.get(url).status_code == 422
 
 
+def test_a_policy_in_force_can_be_read_and_a_retired_one_cannot(tmp_path):
+    path = str(tmp_path / "hr.db")
+    build("acme_labs", path)[0].close()
+    client = TestClient(web.create_app(db_path=path))
+    text = client.get("/api/policies/POL-LEAVE/1.2?tenant=acme_labs").json()
+    assert text["title"] == "Leave Policy"
+    assert "Carrying leave over" in [s["heading"] for s in text["sections"]]
+    assert client.get("/api/policies/POL-REMOTE/1.0?tenant=acme_labs").status_code == 404
+    assert client.get("/api/policies/POL-NOPE/1.0?tenant=acme_labs").status_code == 404
+
+
 # ---------------------------------------------------------------- authentication
 
 
