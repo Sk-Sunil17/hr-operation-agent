@@ -91,6 +91,7 @@ export const api = {
     request(`/policies/${encodeURIComponent(id)}/${encodeURIComponent(version)}${query({ tenant })}`),
   policySearch: (tenant, q, asPerson) => request(`/policies/search${query({ tenant, q, as_person: asPerson })}`),
   tools: (tenant) => request(`/tools${query({ tenant })}`),
+  integrations: (tenant) => request(`/integrations${query({ tenant })}`),
   redaction: (tenant) => request(`/redaction${query({ tenant })}`),
   tryRedaction: (tenant, text) => request(`/redaction/try${query({ tenant })}`, json({ text })),
 

@@ -432,6 +432,26 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
                 "never_writable": sorted(tools.FORBIDDEN_FIELDS),
             }
 
+    @app.get("/api/integrations")
+    def integrations(tenant: str) -> dict[str, Any]:
+        """Which product does each job for this company, and is it ready. Names
+        the environment variables that are missing, never their values."""
+        cfg = tenant_config(tenant)
+        connected = []
+        for decl in cfg.adapters:
+            impl = tools.implementation_for(decl.implementation)
+            if impl is None:
+                connected.append({"name": decl.name, "kind": decl.kind, "implementation": decl.implementation,
+                                  "state": "needs_setup", "detail": "No connector by that name."})
+                continue
+            connected.append({
+                "name": decl.name, "kind": decl.kind, "kind_label": tools.KIND_LABELS.get(decl.kind, decl.kind),
+                "implementation": decl.implementation, "vendor": impl.VENDOR,
+                "product": str(decl.settings.get("vendor") or impl.PRODUCT),
+                "reaches_external": impl.REACHES_EXTERNAL, **impl.connection(decl),
+            })
+        return {"items": connected, "available": tools.catalog()}
+
     @app.get("/api/redaction")
     def redaction(tenant: str) -> dict[str, Any]:
         cfg = tenant_config(tenant)

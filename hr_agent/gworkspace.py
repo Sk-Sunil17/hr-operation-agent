@@ -28,7 +28,11 @@ Four decisions worth stating.
 **Credentials never live in a pack.** Packs are configuration, they are read from
 disk, they are hashed into every decision and they belong in version control. A
 refresh token belongs in none of those places, so it comes from the environment
-and the pack holds only the things it is safe to read in a code review.
+and the pack holds only the things it is safe to read in a code review. By
+default the variables are `HR_GOOGLE_CLIENT_ID`, `HR_GOOGLE_CLIENT_SECRET` and
+`HR_GOOGLE_REFRESH_TOKEN`; a pack that says `credentials: ACME_GOOGLE` reads
+`ACME_GOOGLE_CLIENT_ID` and so on instead, so each company on one server can
+use its own Google account.
 
 **No credentials means a loud failure, not a quiet one.** If the token is absent
 these adapters raise, the kernel's act phase catches it, prepared actions are
@@ -49,18 +53,15 @@ no key material to manage beyond the token itself.
 from __future__ import annotations
 
 import base64
-import json
 import os
-import urllib.error
 import urllib.parse
-import urllib.request
-import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from email.message import EmailMessage
 from typing import Any
 
-from . import db, interviews
+from . import connect, interviews
+from .connect import Response
+from .packs.models import Adapter as AdapterDecl
 from .tools import BaseAdapter, Prepared, ToolError
 
 TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -74,20 +75,14 @@ SCOPES = (
     "https://www.googleapis.com/auth/gmail.send",
 )
 
-ENV_CLIENT_ID = "HR_GOOGLE_CLIENT_ID"
-ENV_CLIENT_SECRET = "HR_GOOGLE_CLIENT_SECRET"
-ENV_REFRESH_TOKEN = "HR_GOOGLE_REFRESH_TOKEN"
-
-TIMEOUT_SECONDS = 20
+DEFAULT_CREDENTIALS = "HR_GOOGLE"
+SECRETS = ("CLIENT_ID", "CLIENT_SECRET", "REFRESH_TOKEN")
+ENV_CLIENT_ID = f"{DEFAULT_CREDENTIALS}_CLIENT_ID"
+ENV_CLIENT_SECRET = f"{DEFAULT_CREDENTIALS}_CLIENT_SECRET"
+ENV_REFRESH_TOKEN = f"{DEFAULT_CREDENTIALS}_REFRESH_TOKEN"
 
 
 # ------------------------------------------------------------------ transport
-
-
-@dataclass
-class Response:
-    status: int
-    body: dict[str, Any]
 
 
 def http(
@@ -98,35 +93,8 @@ def http(
     json_body: dict[str, Any] | None = None,
     form: dict[str, str] | None = None,
 ) -> Response:
-    """One HTTP call. Replaced wholesale in tests, which is the point.
-
-    Google's errors arrive as a JSON body with a non-2xx status, and the message
-    inside it is the useful part -- so the body is read on failure too, rather
-    than being discarded in favour of "HTTP 403".
-    """
-    data: bytes | None = None
-    sending = dict(headers or {})
-    if json_body is not None:
-        data = json.dumps(json_body).encode("utf-8")
-        sending["Content-Type"] = "application/json"
-    elif form is not None:
-        data = urllib.parse.urlencode(form).encode("utf-8")
-        sending["Content-Type"] = "application/x-www-form-urlencoded"
-
-    request = urllib.request.Request(url, data=data, headers=sending, method=method)
-    try:
-        with urllib.request.urlopen(request, timeout=TIMEOUT_SECONDS) as reply:
-            raw = reply.read().decode("utf-8") or "{}"
-            return Response(reply.status, json.loads(raw))
-    except urllib.error.HTTPError as exc:
-        raw = exc.read().decode("utf-8", errors="replace") or "{}"
-        try:
-            body = json.loads(raw)
-        except ValueError:
-            body = {"error": {"message": raw[:400]}}
-        return Response(exc.code, body)
-    except (urllib.error.URLError, TimeoutError, OSError) as exc:
-        raise ToolError(f"Google did not respond: {exc}") from exc
+    """One HTTP call. Replaced wholesale in tests, which is the point."""
+    return connect.http(method, url, headers=headers, json_body=json_body, form=form, vendor="Google")
 
 
 # Swapped by tests. A module-level hook rather than constructor injection,
@@ -165,11 +133,9 @@ class Credentials:
     _expires: datetime | None = field(default=None, repr=False)
 
     @classmethod
-    def from_environment(cls) -> Credentials:
-        missing = [
-            name for name in (ENV_CLIENT_ID, ENV_CLIENT_SECRET, ENV_REFRESH_TOKEN)
-            if not os.environ.get(name)
-        ]
+    def from_environment(cls, prefix: str = DEFAULT_CREDENTIALS) -> Credentials:
+        names = {s: f"{prefix}_{s}" for s in SECRETS}
+        missing = [env for env in names.values() if not os.environ.get(env)]
         if missing:
             raise ToolError(
                 "Google is configured as the system of record but is not authorised: "
@@ -177,9 +143,9 @@ class Credentials:
                 "Nothing has been sent or booked."
             )
         return cls(
-            client_id=os.environ[ENV_CLIENT_ID],
-            client_secret=os.environ[ENV_CLIENT_SECRET],
-            refresh_token=os.environ[ENV_REFRESH_TOKEN],
+            client_id=os.environ[names["CLIENT_ID"]],
+            client_secret=os.environ[names["CLIENT_SECRET"]],
+            refresh_token=os.environ[names["REFRESH_TOKEN"]],
         )
 
     def token(self) -> str:
@@ -205,20 +171,37 @@ class Credentials:
         return self._token
 
 
-_CREDENTIALS: Credentials | None = None
+# One set per environment prefix, so two companies never share a Google account.
+_CREDENTIALS: dict[str, Credentials] | None = None
 
 
-def credentials() -> Credentials:
+def credentials(decl: AdapterDecl | None = None) -> Credentials:
     global _CREDENTIALS
+    prefix = connect.env_prefix(decl, DEFAULT_CREDENTIALS) if decl is not None else DEFAULT_CREDENTIALS
     if _CREDENTIALS is None:
-        _CREDENTIALS = Credentials.from_environment()
-    return _CREDENTIALS
+        _CREDENTIALS = {}
+    if prefix not in _CREDENTIALS:
+        _CREDENTIALS[prefix] = Credentials.from_environment(prefix)
+    return _CREDENTIALS[prefix]
 
 
 def forget_credentials() -> None:
     """Test hook, and the way to pick up a rotated token without a restart."""
     global _CREDENTIALS
     _CREDENTIALS = None
+
+
+class _Google(BaseAdapter):
+    VENDOR = "Google"
+    SECRETS = SECRETS
+    DEFAULT_CREDENTIALS = DEFAULT_CREDENTIALS
+
+    def _token(self) -> str:
+        return credentials(self.decl).token()
+
+    def check_live(self) -> str | None:
+        self._token()
+        return "Google accepted the credentials."
 
 
 # ------------------------------------------------------------------ time
@@ -238,7 +221,7 @@ def _rfc3339(day: str, hhmm: str, timezone: str) -> str:
 # ------------------------------------------------------------------ calendar
 
 
-class GoogleCalendar(BaseAdapter):
+class GoogleCalendar(_Google):
     """Real free/busy and real calendar entries.
 
     Google emails the attendees itself when `send_updates` is on, which is why
@@ -249,6 +232,7 @@ class GoogleCalendar(BaseAdapter):
     """
 
     kind = "calendar"
+    PRODUCT = "Google Calendar"
     READS = ("free_busy",)
     WRITES = ("commit_invite", "commit_cancel")
 
@@ -289,7 +273,7 @@ class GoogleCalendar(BaseAdapter):
             body = _call(
                 "POST",
                 f"{CALENDAR_API}/freeBusy",
-                token=credentials().token(),
+                token=self._token(),
                 json_body={
                     "timeMin": _rfc3339(day, hours.start, timezone),
                     "timeMax": _rfc3339(day, hours.end, timezone),
@@ -424,7 +408,7 @@ class GoogleCalendar(BaseAdapter):
             "POST",
             f"{CALENDAR_API}/calendars/{urllib.parse.quote(self.calendar_id)}/events"
             f"?{urllib.parse.urlencode(query)}",
-            token=credentials().token(),
+            token=self._token(),
             json_body=event,
         )
 
@@ -478,7 +462,7 @@ class GoogleCalendar(BaseAdapter):
                 f"{CALENDAR_API}/calendars/{urllib.parse.quote(self.calendar_id)}/events/"
                 f"{urllib.parse.quote(str(reference))}"
                 f"?{urllib.parse.urlencode({'sendUpdates': self.send_updates})}",
-                headers={"Authorization": f"Bearer {credentials().token()}"},
+                headers={"Authorization": f"Bearer {self._token()}"},
             )
             # 404 and 410 mean it is already gone, which is the state we wanted.
             if reply.status >= 400 and reply.status not in (404, 410):
@@ -515,7 +499,7 @@ def _hhmm_of(timestamp: str | None, fallback: str) -> str:
 # ------------------------------------------------------------------ mail
 
 
-class Gmail(BaseAdapter):
+class Gmail(_Google):
     """Sends the candidate's invitation, with the calendar entry attached.
 
     The one adapter in this file that reaches somebody who does not work here,
@@ -525,6 +509,8 @@ class Gmail(BaseAdapter):
     """
 
     kind = "notify"
+    PRODUCT = "Gmail"
+    REQUIRED_SETTINGS = ("from_address",)
     READS = ()
     WRITES = ("commit_message",)
     REACHES_EXTERNAL = True
@@ -561,44 +547,19 @@ class Gmail(BaseAdapter):
         if operation != "commit_message":
             return super().act(operation, **args)
         subject = args.get("subject") or "(no subject)"
-        message = EmailMessage()
-        message["To"] = args["to"]
-        message["From"] = self.sender
-        message["Subject"] = subject
-        if reply_to := self.decl.settings.get("reply_to"):
-            message["Reply-To"] = str(reply_to)
-        message.set_content(args["body"])
-        if invitation := args.get("ics"):
-            # `method=REQUEST` is what makes a mail client offer "add to
-            # calendar" rather than treating it as an unremarkable attachment.
-            message.add_attachment(
-                invitation.encode("utf-8"),
-                maintype="text", subtype="calendar",
-                filename="invite.ics",
-                params={"method": "REQUEST", "name": "invite.ics"},
-            )
-
+        reply_to = self.decl.settings.get("reply_to")
+        message = connect.build_email(
+            to=args["to"], sender=self.sender, subject=subject, body=args["body"],
+            reply_to=str(reply_to) if reply_to else None, ics=args.get("ics"),
+        )
         sent = _call(
             "POST",
             f"{GMAIL_API}/users/me/messages/send",
-            token=credentials().token(),
+            token=self._token(),
             json_body={"raw": base64.urlsafe_b64encode(message.as_bytes()).decode("ascii")},
         )
-
-        # The log records what was sent, as it does for every other notifier, so
-        # "what did we actually tell this candidate" has an answer.
-        record_id = "mail_" + uuid.uuid4().hex[:12]
-        db.insert(self.conn, "message_log", {
-            "id": record_id,
-            "tenant_id": self.cfg.tenant_id,
-            "work_item_id": args["work_item_id"],
-            "direction": "outbound",
-            "channel": self.name,
-            "body": f"To: {args['to']}\nSubject: {subject}\n\n{args['body']}",
-            "idempotency_key": args.get("idempotency_key"),
-            "suppressed": 0,
-            "at": db.now(),
-        })
+        record_id = connect.log_message(
+            self, args, f"To: {args['to']}\nSubject: {subject}\n\n{args['body']}", prefix="mail")
         return {
             "message_id": sent.get("id") or record_id,
             "thread_id": sent.get("threadId"),

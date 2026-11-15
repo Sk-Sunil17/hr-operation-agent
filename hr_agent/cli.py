@@ -1174,6 +1174,46 @@ def cmd_leaver(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_integrations(args: argparse.Namespace) -> int:
+    """Which product does each job, whether it is ready, and what else can be connected."""
+    if args.tenant is None:
+        heading("connectors a company can name in adapters.yaml")
+        table(["implementation", "kind", "product", "needs settings", "secrets (env prefix)"], [
+            [c["implementation"], c["kind"], c["product"], ", ".join(c["settings"]) or "—",
+             (f"{c['default_credentials']}_" + f", {c['default_credentials']}_".join(c["secrets"]))
+             if c["secrets"] and c["default_credentials"] else "—"]
+            for c in tools.catalog()
+        ])
+        _w("  Name `credentials: YOUR_PREFIX` in an adapter's settings to read YOUR_PREFIX_* instead.")
+        return 0
+
+    cfg = load(args.tenant)
+    conn = db.open_db() if args.check else None
+    rows, failed = [], 0
+    for decl in cfg.adapters:
+        impl = tools.implementation_for(decl.implementation)
+        if impl is None:
+            rows.append([decl.name, decl.kind, decl.implementation, "needs setup", "no connector by that name"])
+            failed += 1
+            continue
+        state = impl.connection(decl)
+        detail = state["detail"]
+        if args.check and state["state"] == "ready":
+            try:
+                detail = impl(decl, cfg, conn).check_live() or "no harmless way to test; not contacted"
+            except tools.ToolError as exc:
+                state, detail = {"state": "failed"}, str(exc)
+        if state["state"] in {"needs_setup", "failed"}:
+            failed += 1
+        rows.append([decl.name, decl.kind, str(decl.settings.get("vendor") or impl.PRODUCT),
+                     state["state"].replace("_", " "), detail])
+    if conn is not None:
+        conn.close()
+    heading(f"connected systems for {cfg.manifest.name}")
+    table(["adapter", "kind", "product", "state", "detail"], rows)
+    return 1 if failed else 0
+
+
 def cmd_account(args: argparse.Namespace) -> int:
     """Create or reset a sign-in for somebody already in the directory."""
     cfg = load(args.tenant)
@@ -1320,6 +1360,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_exit.add_argument("--last-day", default=None, help="YYYY-MM-DD")
     p_exit.add_argument("--note", required=True, help="why, for the audit trail")
     p_exit.set_defaults(func=cmd_leaver)
+
+    p_conn = sub.add_parser("integrations", help="which products a company is connected to, and every one it could be")
+    p_conn.add_argument("tenant", nargs="?", default=None, help="omit to list every available connector")
+    p_conn.add_argument("--check", action="store_true", help="prove the credentials work, changing nothing")
+    p_conn.set_defaults(func=cmd_integrations)
 
     p_int = sub.add_parser("interviews", help="interviews this company has booked")
     p_int.add_argument("tenant")

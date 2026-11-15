@@ -6,9 +6,12 @@ a company's configuration is validated data, not prose a consultant interprets.
 
 from __future__ import annotations
 
+import re
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+SECRET_SETTING = re.compile(r"secret|password|passwd|token|api_?key|private_?key|webhook", re.IGNORECASE)
 
 # How much the agent may do, ordered from most to least autonomous. The index is
 # the whole enforcement mechanism for "a tenant may tighten, never loosen".
@@ -222,6 +225,19 @@ class Adapter(Strict):
         bad = sorted(set(v) & banned)
         if bad:
             raise ValueError(f"no adapter may own pay or access fields: {', '.join(bad)}")
+        return v
+
+    @field_validator("settings")
+    @classmethod
+    def no_secrets(cls, v: dict[str, Any]) -> dict[str, Any]:
+        """Packs are hashed into decisions and kept in version control, so a
+        password or token written into one is a leak waiting to happen."""
+        leaked = sorted(k for k, value in v.items() if SECRET_SETTING.search(k) and value not in (None, ""))
+        if leaked:
+            raise ValueError(
+                f"settings {', '.join(leaked)} look like credentials. Put them in environment variables "
+                "and name the prefix instead, e.g. `credentials: ACME_GOOGLE` reads ACME_GOOGLE_CLIENT_SECRET"
+            )
         return v
 
 

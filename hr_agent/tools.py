@@ -70,6 +70,47 @@ class BaseAdapter:
     # the candidate cannot see, with a committed plan saying it went out.
     REACHES_EXTERNAL = False
 
+    # Who makes the product behind this adapter, for people reading the setup.
+    VENDOR = "Built-in demo"
+    PRODUCT = "Demo system"
+    # Environment variables this connector reads, as suffixes of the prefix the
+    # pack names in `credentials:` (or DEFAULT_CREDENTIALS when it names none).
+    SECRETS: tuple[str, ...] = ()
+    DEFAULT_CREDENTIALS = ""
+    REQUIRED_SETTINGS: tuple[str, ...] = ()
+
+    @classmethod
+    def check_settings(cls, decl: AdapterDecl) -> list[str]:
+        """What is wrong with a pack's settings for this connector, before it is used."""
+        return [f"needs the setting {key!r}" for key in cls.REQUIRED_SETTINGS if not decl.settings.get(key)]
+
+    @classmethod
+    def secret_names(cls, decl: AdapterDecl) -> tuple[str, ...]:
+        return cls.SECRETS
+
+    @classmethod
+    def connection(cls, decl: AdapterDecl) -> dict[str, Any]:
+        """Whether this connector could work right now. Never contacts anyone."""
+        if not cls.SECRETS and cls.VENDOR == BaseAdapter.VENDOR:
+            return {"state": "demo", "detail": "Built-in demo data. Nothing leaves this server."}
+        from . import connect
+
+        try:
+            absent = connect.missing(decl, cls.DEFAULT_CREDENTIALS, cls.secret_names(decl))
+        except connect.ConnectorError as exc:
+            return {"state": "needs_setup", "detail": str(exc)}
+        problems = cls.check_settings(decl)
+        if problems:
+            return {"state": "needs_setup", "detail": "; ".join(problems)}
+        if absent:
+            return {"state": "needs_setup", "detail": f"Set {', '.join(absent)} on the server."}
+        return {"state": "ready", "detail": "Credentials are present. Nothing is contacted until it is needed."}
+
+    def check_live(self) -> str | None:
+        """Prove the credentials work without changing anything. None when a
+        connector has no harmless way to do that."""
+        return None
+
     def __init__(self, decl: AdapterDecl, cfg: ResolvedConfig, conn: sqlite3.Connection) -> None:
         self.decl = decl
         self.name = decl.name
@@ -110,6 +151,7 @@ class MockHris(BaseAdapter):
     """Reads the directory; writes go to `adapter_record` so a committed change is visible."""
 
     kind = "hris"
+    PRODUCT = "Demo HR records"
     READS = ("read_person", "read_manager", "read_record")
     WRITES = ("commit_record_change",)
 
@@ -180,6 +222,7 @@ class MockNotify(BaseAdapter):
     """The only way a message leaves. Committing writes the message log."""
 
     kind = "notify"
+    PRODUCT = "Demo messages"
     READS = ()
     WRITES = ("commit_message",)
 
@@ -229,6 +272,7 @@ class MockCalendar(BaseAdapter):
     """
 
     kind = "calendar"
+    PRODUCT = "Demo calendar"
     READS = ("free_busy",)
     WRITES = ("commit_invite", "commit_cancel")
 
@@ -397,6 +441,7 @@ class MockMail(BaseAdapter):
     """
 
     kind = "notify"
+    PRODUCT = "Demo mailbox"
     READS = ()
     WRITES = ("commit_message",)
     REACHES_EXTERNAL = True
@@ -446,6 +491,7 @@ class MockItsm(BaseAdapter):
     """Raises a request in a service desk. It can request; it cannot decide."""
 
     kind = "itsm"
+    PRODUCT = "Demo service desk"
     READS = ()
     WRITES = ("commit_request",)
 
@@ -467,6 +513,7 @@ class MockItsm(BaseAdapter):
 
 class MockDocstore(BaseAdapter):
     kind = "docstore"
+    PRODUCT = "Demo document store"
     READS = ("read_document",)
     WRITES = ("commit_file",)
 
@@ -505,6 +552,7 @@ class MockDocstore(BaseAdapter):
 
 class MockEsign(BaseAdapter):
     kind = "esign"
+    PRODUCT = "Demo e-signature"
     READS = ()
     WRITES = ("commit_envelope",)
 
@@ -532,8 +580,36 @@ IMPLEMENTATIONS: dict[str, type[BaseAdapter]] = {
 # Implementations that talk to a real outside service, loaded only when a pack
 # actually names one. Keeping them out of this module's imports means the core
 # has no opinion about which vendors exist, and a company that uses none of them
-# pays nothing for their existence.
-EXTERNAL_MODULES = ("hr_agent.gworkspace",)
+# pays nothing for their existence. A new vendor is a new module listed here.
+EXTERNAL_MODULES = ("hr_agent.gworkspace", "hr_agent.microsoft365", "hr_agent.standard")
+
+KIND_LABELS = {
+    "hris": "HR system",
+    "calendar": "Calendar",
+    "notify": "Messages and email",
+    "docstore": "Documents",
+    "esign": "E-signature",
+    "itsm": "Service desk",
+}
+
+
+def catalog() -> list[dict[str, Any]]:
+    """Every implementation a pack can name, for setup screens and `hrctl integrations`."""
+    found = dict(IMPLEMENTATIONS)
+    for module_name in EXTERNAL_MODULES:
+        try:
+            found.update(getattr(importlib.import_module(module_name), "IMPLEMENTATIONS", {}))
+        except ImportError:  # pragma: no cover
+            continue
+    return [
+        {
+            "implementation": name, "kind": impl.kind, "kind_label": KIND_LABELS.get(impl.kind, impl.kind),
+            "vendor": impl.VENDOR, "product": impl.PRODUCT, "reaches_external": impl.REACHES_EXTERNAL,
+            "settings": list(impl.REQUIRED_SETTINGS), "default_credentials": impl.DEFAULT_CREDENTIALS or None,
+            "secrets": list(impl.SECRETS),
+        }
+        for name, impl in sorted(found.items(), key=lambda kv: (kv[1].kind, kv[1].VENDOR != BaseAdapter.VENDOR, kv[0]))
+    ]
 
 
 def implementation_for(name: str) -> type[BaseAdapter] | None:
@@ -629,6 +705,8 @@ class Registry:
                 "name": a.name,
                 "kind": a.kind,
                 "implementation": a.decl.implementation,
+                "vendor": a.VENDOR,
+                "product": a.PRODUCT,
                 "owns": a.decl.owns_fields,
                 "operations": a.decl.operations,
                 "reads": [o for o in a.decl.operations if o in a.READS],

@@ -123,6 +123,7 @@ hrctl explain <company> "<message>" --as <person>    # decide, change nothing
 hrctl run     <company> "<message>" --as <person>    # do it for real
 hrctl queue   <company> --as <person>        # what is waiting
 hrctl decide  <company> <approval> approved|sent_back|taken_over --as <person>
+hrctl integrations [company] [--check]       # which products are connected, and every one that could be
 hrctl leaver  <company> <person> --as <hr person> --last-day 2026-12-11 --note "Resigned"  # open an exit case
 hrctl policy search <company> "<query>"      # what would be quoted, and why it matched
 hrctl simulate [company]                     # the company's own golden cases
@@ -187,7 +188,10 @@ hr_agent/           the kernel: identical for every customer
   facts.py          what is true, from systems rather than from the text
   interviews.py     scheduling: reading a request, solving for a time, persistence
   ics.py            calendar invitations, so a candidate's email carries a real one
-  gworkspace.py     Google Calendar and Gmail, behind the same adapter interface
+  connect.py        what every outside connector shares: credentials, transport, email
+  gworkspace.py     Google Calendar and Gmail
+  microsoft365.py   Outlook calendars (Teams links) and Outlook mail, via Microsoft Graph
+  standard.py       any vendor by standard: SMTP mail, chat webhooks, REST HR and document systems
   engine.py         the rule engine. Imports nothing that could reach a model
   draft.py          templates that pass the verify gate by construction
   verify.py         the gate
@@ -258,27 +262,99 @@ it is written out in full in the preview an approver reads before anything is
 sent. Where several addresses appear and none is attributable to a named
 candidate, none is used and the reply says so.
 
-**A real calendar.** `gworkspace.py` implements Google Calendar and Gmail against
-the same adapter interface. Swapping to them is a change to `adapters.yaml` plus
-three environment variables; the kernel, the rules, the verify gate and the
-approval queue are untouched. Credentials never live in a pack, because packs are
-read from disk, hashed into every decision, and belong in version control.
+**Real calendars and mailboxes.** See *Connecting each company's own products* below.
+
+---
+
+## Connecting each company's own products
+
+Companies use different products, so the agent is never tied to one. Each
+company names its own in `packs/tenants/<company>/adapters.yaml`; the kernel only
+ever asks for "a calendar", "an HR system" or "something that can email a
+candidate". Swapping Google for Microsoft, or either for something else, changes
+that file and nothing else: the rules, the safety checks and the approval queue
+are untouched.
+
+| Job | Connectors (`implementation:`) |
+|---|---|
+| Interview calendars | `google_calendar` (Google Meet links) · `microsoft_calendar` (Outlook, Teams links) |
+| Emailing candidates | `gmail` · `outlook_mail` · `smtp_mail` (any provider: Zoho, Fastmail, Amazon SES, SendGrid, Mailgun, an Exchange relay…) |
+| Staff notifications | `webhook` with `format: slack`, `teams`, `google_chat`, `mattermost` or `discord` |
+| Staff records (onboarding, record changes) | `rest_hris`: any HR system with a REST API (BambooHR, HiBob, Personio, Workday, Rippling, in-house), with a field mapping |
+| Filing onboarding documents | `rest_docstore`: any document system, directly or through Power Automate / Zapier / Make to SharePoint, Google Drive or Box |
+| Demo | `mock_*` for every job, used by the three shipped companies |
+
+Example, for a company on Microsoft 365 with BambooHR and Slack:
 
 ```yaml
-# packs/tenants/<company>/adapters.yaml
-- name: calendars
-  kind: calendar
-  implementation: google_calendar          # was: mock_calendar
-  operations: [free_busy, prepare_invite, commit_invite, prepare_cancel, commit_cancel]
-  settings: { calendar_id: primary, conferencing: true, send_updates: all }
+adapters:
+  - name: calendars
+    kind: calendar
+    implementation: microsoft_calendar
+    operations: [free_busy, prepare_invite, commit_invite, prepare_cancel, commit_cancel]
+    settings: { organizer: recruiting@contoso.com, teams_meeting: true, credentials: CONTOSO_MS }
+
+  - name: email
+    kind: notify
+    implementation: outlook_mail
+    operations: [prepare_message, commit_message]
+    settings: { from_address: recruiting@contoso.com, credentials: CONTOSO_MS }
+
+  - name: people_system
+    kind: hris
+    implementation: rest_hris
+    owns_fields: [phone, home_address, personal_email]
+    operations: [read_person, read_manager, read_record, prepare_record_change, commit_record_change]
+    settings:
+      vendor: BambooHR
+      base_url: https://api.bamboohr.com/api/gateway.php/contoso/v1
+      auth: basic
+      credentials: CONTOSO_BAMBOO
+      read_path: /employees/{person}?fields=mobilePhone,address1,homeEmail
+      write_path: /employees/{person}
+      write_method: POST
+      fields: { phone: mobilePhone, home_address: address1, personal_email: homeEmail }
+
+  - name: slack
+    kind: notify
+    implementation: webhook
+    operations: [prepare_message, commit_message]
+    settings: { format: slack, channel_label: "#people-help", credentials: CONTOSO_SLACK }
 ```
+
+**Secrets live on the server, never in the pack.** Packs are hashed into every
+decision and kept in version control, so a pack containing a password, token or
+key is refused when it loads. Instead each adapter names an environment prefix
+with `credentials:`, and that is how two companies on one server use two
+different Google or Microsoft accounts. The example above reads:
 
 ```bash
-export HR_GOOGLE_CLIENT_ID=... HR_GOOGLE_CLIENT_SECRET=... HR_GOOGLE_REFRESH_TOKEN=...
+export CONTOSO_MS_TENANT_ID=... CONTOSO_MS_CLIENT_ID=... CONTOSO_MS_CLIENT_SECRET=...   # Entra ID app: Calendars.ReadWrite, Mail.Send
+export CONTOSO_BAMBOO_USERNAME=<api key> CONTOSO_BAMBOO_PASSWORD=x
+export CONTOSO_SLACK_URL=https://hooks.slack.com/services/...
 ```
 
-With no credentials set, the adapters raise rather than pretend: nothing is
-booked, nobody is emailed, and a person is told a system did not answer.
+Without `credentials:` the defaults are `HR_GOOGLE_*` (client id, secret and
+refresh token), `HR_MS_*`, `HR_SMTP_*`, `HR_WEBHOOK_URL` and `HR_REST_*`.
+
+**Checking a setup.** `hrctl integrations` lists every connector and the settings
+and secrets each needs. `hrctl integrations <company>` shows what that company
+is connected to and whether each is ready; add `--check` to prove the
+credentials work without sending, booking or changing anything. `hrctl validate`
+rejects a connector used for the wrong job, missing settings, an `http://`
+address, or unencrypted mail to anything but a relay on the same machine. HR
+sees the same status under **Insights → Connected systems**.
+
+With credentials missing or a vendor down, a connector fails loudly rather than
+pretending: nothing is booked, nobody is emailed, nothing is changed, and a
+person is told which system did not answer.
+
+**Adding another vendor** is one module: subclass `BaseAdapter`, implement
+`read` / `preview` / `act` for the operations of its kind, declare `VENDOR`,
+`PRODUCT`, `SECRETS` and `REQUIRED_SETTINGS`, export it in `IMPLEMENTATIONS`,
+and list the module in `tools.EXTERNAL_MODULES`. `gworkspace.py`,
+`microsoft365.py` and `standard.py` are the worked examples, and
+`tests/test_integrations.py` shows how to test one against a fake transport.
 
 ---
 

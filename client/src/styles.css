@@ -725,6 +725,17 @@ textarea { resize: vertical; font-size: 14px; line-height: 1.5; }
 .trust .trust-warn::before { content: '!'; color: var(--gold-ink); }
 .trust .trust-bad::before { content: '✕'; color: var(--err); }
 .sample-check { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 16px; }
+.main > .panels + .panel { margin-top: 16px; }
+.systems { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.systems li {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
+}
+.systems li > div { display: grid; gap: 2px; min-width: 0; }
+.systems-kind { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--gold-ink); }
+.systems .status { flex: none; }
+.systems-more { margin-top: 14px; }
+.systems-more > summary { cursor: pointer; font-weight: 600; color: var(--blue); font-size: 14px; }
 
 /* ---------- Smaller screens ---------- */
 

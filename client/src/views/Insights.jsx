@@ -22,8 +22,63 @@ function Bars({ rows }) {
   );
 }
 
+const STATE = {
+  ready: ['Ready', 'ok'],
+  demo: ['Demo data', 'neutral'],
+  needs_setup: ['Needs setup', 'err'],
+};
+
+function Systems({ data, company }) {
+  if (!data) return <p className="hint">Loading…</p>;
+  const byKind = {};
+  for (const c of data.available) (byKind[c.kind_label] ||= []).push(c);
+  return (
+    <>
+      <ul className="systems">
+        {data.items.map((s) => {
+          const [label, tone] = STATE[s.state] || [s.state, 'neutral'];
+          return (
+            <li key={s.name}>
+              <div>
+                <span className="systems-kind">{s.kind_label || s.kind}</span>
+                <strong>{s.product || s.implementation}</strong>
+                <span className="hint hint-tight">{s.detail}</span>
+              </div>
+              <span className={`status status-${tone}`}>{label}</span>
+            </li>
+          );
+        })}
+      </ul>
+      <details className="systems-more">
+        <summary>Products the agent can connect to</summary>
+        <p className="hint">
+          Each company picks its own in its configuration, so {company?.name || 'one company'} can use Google
+          while another uses Microsoft or anything with a standard connection. Passwords and keys are kept on
+          the server, never in the configuration.
+        </p>
+        <div className="defs">
+          <dl>
+            {Object.entries(byKind).map(([kind, items]) => (
+              <div key={kind}>
+                <dt>{kind}</dt>
+                <dd>
+                  {items
+                    .filter((c) => c.vendor !== 'Built-in demo')
+                    .map((c) => c.product)
+                    .join(' · ') || 'Demo only'}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </details>
+    </>
+  );
+}
+
 export default function InsightsView({ tenant, company, onError }) {
   const [m] = useLoad(() => api.metrics(tenant), [tenant], onError);
+  const [systems] = useLoad(() => api.integrations(tenant), [tenant], onError);
   const [audit] = useLoad(() => api.audit(tenant), [tenant], onError);
   const [check, setCheck] = useState(null);
   const [busy, run] = useBusy(onError);
@@ -144,6 +199,11 @@ export default function InsightsView({ tenant, company, onError }) {
             )}
           </section>
         </div>
+
+        <section className="panel">
+          <h2>Connected systems</h2>
+          <Systems data={systems} company={company} />
+        </section>
 
         <details className="how">
           <summary>How these numbers are counted</summary>

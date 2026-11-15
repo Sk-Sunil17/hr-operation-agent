@@ -132,10 +132,22 @@ def _check_adapters(cfg: ResolvedConfig) -> list[Problem]:
     if "notify" not in kinds:
         out.append(Problem("error", "adapters", "nothing can be sent without a notify adapter"))
 
+    from ..tools import implementation_for
+
     owners: dict[str, list[str]] = {}
     for adapter in cfg.adapters:
+        where = f"adapters.{adapter.name}"
         if not adapter.operations:
-            out.append(Problem("warning", f"adapters.{adapter.name}", "declares no operations, so it can do nothing"))
+            out.append(Problem("warning", where, "declares no operations, so it can do nothing"))
+        found = implementation_for(adapter.implementation)
+        if found is None:
+            out.append(Problem("error", where, f"no connector is called {adapter.implementation!r}; "
+                                               "`hrctl integrations` lists the ones available"))
+        elif found.kind != adapter.kind:
+            out.append(Problem("error", where, f"{adapter.implementation} is a {found.kind} connector, "
+                                               f"not a {adapter.kind} one"))
+        else:
+            out += [Problem("error", where, message) for message in found.check_settings(adapter)]
         for field in adapter.owns_fields:
             owners.setdefault(field, []).append(adapter.name)
     for field, names in owners.items():

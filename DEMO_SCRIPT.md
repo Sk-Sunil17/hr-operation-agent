@@ -458,6 +458,15 @@ nothing to hallucinate.)*
 > "Yes — that's the whole design. Your policies, your rules, your approval chain,
 > your systems. It's a configuration file, not a code change."
 
+**"We use Outlook, not Google." / "Does it work with our HR system?"**
+> "Yes. Each company picks its own products: Google Calendar or Outlook with
+> Teams links, Gmail, Outlook or any mail provider, Slack, Teams or Google Chat
+> for staff messages, and any HR or document system with a standard connection —
+> BambooHR, HiBob, Personio, Workday, SharePoint. Swapping one is a settings
+> change. Passwords and keys stay on your server, never in the configuration."
+*(To show it: Insights → Connected systems → "Products the agent can connect to".
+The demo companies run on built-in demo systems so nothing real is emailed.)*
+
 **"Is our data safe? Is it training on it?"**
 > "No training on your data, and that's a hard setting, not a promise. Personal
 > details — emails, phone numbers, bank details, dates of birth — are stripped
