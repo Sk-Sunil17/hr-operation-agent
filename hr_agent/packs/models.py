@@ -563,6 +563,9 @@ class ResolvedConfig(BaseModel):
     exit_checklist: list[ExitItem]
     interviews: InterviewConfig
     golden_cases: list[GoldenCase]
+    # Modes HR set from the dashboard, by rule id. Applied after every pack
+    # layer and only where stricter, so the pack stays the floor.
+    rule_settings: dict[str, Mode] = Field(default_factory=dict)
     provenance: dict[str, str] = Field(default_factory=dict)
     config_hash: str = ""
 

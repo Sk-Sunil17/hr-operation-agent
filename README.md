@@ -85,22 +85,28 @@ enough, on purpose.
 
 | Screen | Try this | What it shows |
 |---|---|---|
-| **Ask** | "How many days of annual leave do I get in a year?" | Answered on its own, quoting Leave Policy v1.2 §2 verbatim, all 12 verify checks green |
+| **Ask** | "How many days of annual leave do I get in a year?" | Answered on its own, quoting Leave Policy v1.2 §2 verbatim, every safety check passed |
 | **Ask** | "My manager has been making comments about my accent" | Handed to a named person in seconds. No answer drafted, no clarifying question, a case opened |
 | **Ask** | Switch **Company** to Meridian Group, ask the leave question again | Same rule `E1`, different outcome: queued for a person. Same kernel, zero code difference |
 | **Ask** | "What is Priya's home address?" | Declined, with the reason and what to do instead |
-| **Ask** | **Explain only** on anything | The decision, the facts it fired on, and every rule considered — without running it |
+| **Ask** | Open **How the agent decided** under any result | The rule that fired, the seven stages, and every safety check |
 | **Ask** | "Please arrange a technical interview with Astrid Lindqvist (astrid.l@example.test) for the Head of Finance role, with Priya and Sam." | Three calendars read across four working days, a time proposed with two alternatives, and the calendar hold, the candidate's email and the panel's brief all prepared. Plus every day it ruled out, and why |
-| **Ask** | Tick **Attach a document**, click the test case tagged *with a document* | The form read against this company's own template, every field read back to be checked — and the bank details reported as *filled in, not repeated here* |
+| **Ask** | Click the **Documents** tile (it attaches the form for you) | The form read against this company's own template, every field read back to be checked — and the bank details reported as *filled in, not repeated here* |
 | **Ask** | Delete one line from that form and run it again | Names exactly what is missing, files nothing, chases nobody |
 | **Interviews** | — | What is actually booked, and a read-only "when is this panel free" that runs the same solver the agent does |
 | **Approvals** | Approve a prepared change | Nothing touched a real system until this click. Watch the record change appear |
 | **Approvals** | Approve the interview | One decision books the calendar entry AND emails the candidate with an `.ics` attached. Splitting it would make "booked, nobody told" reachable |
-| **Rules** | Look at Meridian | 2 rules tightened by the company, 2 more by populations inside it, each marked with who set it |
-| **Systems** | Paste text with an email, phone, DOB | The redaction pack in force, and what it does |
-| **Audit** | — | The hash chain, and an honest note about what it cannot detect |
-| **Measurement** | — | Deflection rate deliberately absent; caveats you cannot dismiss |
-| **Configuration** | **Simulate** | The company's own golden cases through the real kernel |
+| **Rules** | As an HR person, **Change** "Routine policy questions" to *Draft for approval* | Before saving, it shows which sample requests would be handled differently. Save with a reason and the next leave question waits for approval. Options looser than the company rulebook are greyed out, and relaxing a rule you tightened needs a second HR person |
+| **Insights** | **Run the sample requests** | Usage, outcomes, the audit chain check, and the company's own sample requests through the real kernel |
+| **Acting as** | Switch to an employee such as Maya | Only *Ask*, *My requests* and *Policies*: employees see their own requests and nothing else |
+
+### Who can change the rules
+
+HR changes how each kind of request is handled from the **Rules** tab; no file
+editing and no restart. The company's rulebook (`packs/tenants/<company>/rules.yaml`)
+stays the floor: the dashboard can make a rule stricter at once, can never make it
+looser than the rulebook, and relaxing a rule takes a different HR person from the
+one who tightened it. Every change needs a reason and goes on the audit trail.
 
 ---
 

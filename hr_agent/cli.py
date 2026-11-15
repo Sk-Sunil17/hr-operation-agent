@@ -14,7 +14,7 @@ from collections.abc import Sequence
 
 from datetime import date
 
-from . import approvals, audit, auth, classify, config, db, engine, facts as facts_mod, interviews, kernel, policy, redact, scheduler, tools
+from . import approvals, audit, auth, classify, config, db, engine, facts as facts_mod, interviews, kernel, policy, redact, rulebook, scheduler, tools
 from .packs import loader
 from .packs.models import ResolvedConfig
 from .packs.validate import validate as validate_pack
@@ -32,7 +32,7 @@ TENANT_SCRUB = (
     "idempotency_ledger", "citation", "approval", "action_plan", "decision",
     "message_log", "event", "hr_case", "adapter_record",
     "interview_attendee", "interview", "filed_document", "reminder",
-    "audit", "work_item",
+    "audit", "work_item", "rule_setting",
 )
 
 
@@ -65,10 +65,19 @@ def table(headers: Sequence[str], rows: Sequence[Sequence[str]], indent: str = "
 
 
 def load(tenant_id: str) -> ResolvedConfig:
+    """The company's configuration as the agent runs it: the pack, plus any rule
+    settings HR made from the dashboard once a database exists."""
     try:
-        return loader.load_resolved(tenant_id)
+        cfg = loader.load_resolved(tenant_id)
     except loader.PackError as exc:
         sys.exit(f"pack error: {exc}")
+    if config.DB_PATH.exists():
+        conn = db.open_db()
+        try:
+            cfg = rulebook.apply(conn, cfg)
+        finally:
+            conn.close()
+    return cfg
 
 
 def tenant_list(requested: str | None) -> list[str]:
@@ -702,10 +711,11 @@ def _someone_who_can_decide(conn, cfg: ResolvedConfig, approval_id: str) -> str 
 
 def cmd_demo(args: argparse.Namespace) -> int:
     """Seed one company with a realistic morning of traffic, so nothing is empty."""
-    cfg = load(args.tenant)
+    load(args.tenant)
     conn = db.open_db()
     if args.reset:
-        scrub_tenant(conn, cfg.tenant_id)
+        scrub_tenant(conn, args.tenant)
+    cfg = load(args.tenant)
 
     on = date.fromisoformat(args.on) if args.on else None
     ran, booked = [], []

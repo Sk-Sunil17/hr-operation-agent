@@ -334,8 +334,13 @@ def run(
         needs_citation=verdict.needs_citation, citations=citations, plans=plans,
         redactor=redactor, in_force_versions=in_force_map(cfg, person=subject, on=today),
         # What the person supplied. A value they wrote on the form they sent is
-        # as much theirs as one they typed in the message.
-        source=message + "\n" + str((attachment or {}).get("text") or ""),
+        # as much theirs as one they typed in the message. A prepared change's
+        # preview quotes the current value from the very record the rule allowed
+        # this request to change, so it is shown back rather than leaked.
+        source="\n".join([
+            message, str((attachment or {}).get("text") or ""),
+            *(str(p.get("preview_text") or "") for p in plans if p.get("operation") == "commit_record_change"),
+        ]),
         own_addresses=registry.declared_addresses(),
     )
     write_audit("verify", str(result), detail={"checks": result.as_list()}, item=work_item_id)

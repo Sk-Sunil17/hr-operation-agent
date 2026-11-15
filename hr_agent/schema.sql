@@ -460,3 +460,17 @@ CREATE TABLE IF NOT EXISTS interview_attendee (
 
 CREATE INDEX IF NOT EXISTS interview_attendee_of ON interview_attendee (tenant_id, interview_id);
 CREATE INDEX IF NOT EXISTS interview_attendee_person ON interview_attendee (tenant_id, person_id);
+
+-- ---------------------------------------------------------------- rule settings
+-- How HR set a rule from the dashboard. One row per changed rule; a rule back
+-- at its pack mode has no row. The history is the audit trail.
+
+CREATE TABLE IF NOT EXISTS rule_setting (
+  tenant_id   TEXT NOT NULL REFERENCES tenant(id),
+  rule_id     TEXT NOT NULL,
+  mode        TEXT NOT NULL,
+  note        TEXT NOT NULL,
+  changed_by  TEXT NOT NULL,
+  changed_at  TEXT NOT NULL,
+  PRIMARY KEY (tenant_id, rule_id)
+);

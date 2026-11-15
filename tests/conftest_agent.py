@@ -10,9 +10,9 @@ from hr_agent.packs import loader
 TODAY = date(2026, 11, 2)
 
 
-def build(tenant_id: str):
-    """A fresh in-memory world for one company: directory, corpus, config."""
-    conn = db.open_db(":memory:")
+def build(tenant_id: str, path: str = ":memory:"):
+    """A fresh world for one company: directory, corpus, config."""
+    conn = db.open_db(path)
     cfg = loader.load_resolved(tenant_id)
     db.insert(conn, "tenant", {
         "id": tenant_id, "name": cfg.manifest.name, "pack_path": "packs",

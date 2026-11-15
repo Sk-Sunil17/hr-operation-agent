@@ -32,9 +32,9 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import approvals, audit, auth, classify, config, db, engine, facts as facts_mod
-from . import interviews, kernel, metrics, policy, redact, scheduler, tools
+from . import interviews, kernel, metrics, policy, redact, rulebook, scheduler, tools
 from .packs import loader
-from .packs.models import ResolvedConfig
+from .packs.models import MODES, ResolvedConfig, restriction
 from .packs.validate import validate as validate_pack
 
 # Role switching is the demo convenience. It is on only while authentication is
@@ -117,12 +117,19 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
         finally:
             conn.close()
 
-    def tenant_config(tenant: str) -> ResolvedConfig:
+    def pack_config(tenant: str) -> ResolvedConfig:
+        """The company's pack alone: the floor no dashboard setting goes below."""
         if tenant not in cache:
             if tenant not in loader.tenant_ids():
                 raise HTTPException(404, f"no such company: {tenant}")
             cache[tenant] = loader.load_resolved(tenant)
         return cache[tenant]
+
+    def tenant_config(tenant: str) -> ResolvedConfig:
+        """What the agent runs against: the pack plus HR's rule settings."""
+        cfg = pack_config(tenant)
+        with connect() as conn:
+            return rulebook.apply(conn, cfg)
 
     def person_or_404(cfg: ResolvedConfig, person_id: str):
         person = facts_mod.person_by_id(cfg, person_id)
@@ -257,26 +264,75 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
         }
 
     @app.get("/api/rules")
-    def rules(tenant: str) -> dict[str, Any]:
-        cfg = tenant_config(tenant)
-        base = loader.load_base()
-        return {"items": [
-            {
+    def rules(
+        tenant: str, actor: str | None = None, authorization: str | None = Header(default=None)
+    ) -> dict[str, Any]:
+        pack = pack_config(tenant)
+        actor = who(tenant, actor, authorization)
+        names = {p.id: p.name for p in pack.people}
+        with connect() as conn:
+            chosen = rulebook.settings(conn, pack.tenant_id)
+        items = []
+        for rule in pack.rules:
+            setting = chosen.get(rule.id)
+            items.append({
                 "id": rule.id,
                 "when": rule.when,
-                "mode": rule.mode,
-                "base_mode": (base.rule(rule.id).mode if base.rule(rule.id) else rule.mode),
-                "tightened": bool(base.rule(rule.id) and base.rule(rule.id).mode != rule.mode),
-                "needs_citation": rule.needs_citation,
-                "opens_case": rule.opens_case,
                 "reason": rule.reason,
-                "set_by": cfg.provenance.get(f"rules.{rule.id}.mode", "base"),
-            }
-            for rule in cfg.rules
-        ], "segment_overlays": [
-            {"segment": s.id, "label": s.label, "rules": [{"id": r.id, "mode": r.mode, "reason": r.reason} for r in s.rules]}
-            for s in cfg.segments if s.rules
-        ]}
+                "needs_citation": rule.needs_citation,
+                "pack_mode": rule.mode,
+                "mode": setting["mode"] if setting else rule.mode,
+                "allowed_modes": [m for m in MODES if restriction(m) >= restriction(rule.mode)],
+                "changed": (
+                    {
+                        "by": setting["changed_by"], "by_name": names.get(setting["changed_by"], setting["changed_by"]),
+                        "at": setting["changed_at"], "note": setting["note"],
+                    }
+                    if setting else None
+                ),
+            })
+        return {
+            "items": items,
+            "can_change": rulebook.may_change(pack, actor),
+            "segment_overlays": [
+                {"segment": s.id, "label": s.label, "rules": [{"id": r.id, "mode": r.mode} for r in s.rules]}
+                for s in pack.segments if s.rules
+            ],
+        }
+
+    @app.post("/api/rules/{rule_id}")
+    def change_rule(
+        rule_id: str, tenant: str, body: dict[str, Any] = Body(...),
+        authorization: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        pack = pack_config(tenant)
+        actor = who(tenant, str(body.get("actor", "")), authorization)
+        with connect() as conn:
+            try:
+                return rulebook.change(
+                    conn, pack, rule_id=rule_id, mode=str(body.get("mode", "")),
+                    actor_id=actor or "", note=str(body.get("note", "")),
+                )
+            except rulebook.RuleChangeError as exc:
+                return JSONResponse(status_code=409, content={"error": str(exc)})
+
+    @app.post("/api/rules/{rule_id}/preview")
+    def preview_rule(rule_id: str, tenant: str, body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+        """Which of the company's own example requests a change would handle
+        differently. Runs them in a throwaway database; changes nothing."""
+        now = tenant_config(tenant)
+        if now.rule(rule_id) is None:
+            raise HTTPException(404, f"there is no rule {rule_id!r}")
+        mode = str(body.get("mode", ""))
+        if mode not in MODES:
+            raise HTTPException(400, f"unknown mode {mode!r}")
+        before = {r["id"]: r for r in _run_golden(now, None)}
+        after = _run_golden(rulebook.with_setting(now, rule_id, mode), None)
+        changed = [
+            {"id": r["id"], "message": r["message"], "before": before[r["id"]]["mode"], "after": r["mode"]}
+            for r in after if before[r["id"]]["mode"] != r["mode"]
+        ]
+        return {"rule_id": rule_id, "mode": mode, "examples_checked": len(after), "changed": changed}
 
     @app.get("/api/policies")
     def policies(tenant: str) -> dict[str, Any]:
@@ -412,6 +468,7 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
         tenant: str,
         limit: int = Query(50, ge=1, le=200),
         status: str | None = None,
+        requester: str | None = Query(None, description="only this person's own requests"),
         before: str | None = Query(None, description="cursor from a previous page's nextCursor"),
     ) -> dict[str, Any]:
         """A page of work items, newest first.
@@ -430,6 +487,9 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
         if status:
             sql += " AND w.status = ?"
             params.append(status)
+        if requester:
+            sql += " AND w.requester_id = ?"
+            params.append(requester)
         if before:
             try:
                 at, last_id = before.split("|", 1)
@@ -750,44 +810,50 @@ def create_app(*, db_path: str | None = None) -> FastAPI:
         """
         cfg = tenant_config(tenant)
         as_of = _date(on, "on")
-        with closing(db.open_db(":memory:")) as conn:
-            db.insert(conn, "tenant", {
-                "id": cfg.tenant_id, "name": cfg.manifest.name, "pack_path": "packs",
-                "config_hash": cfg.config_hash, "active": 1, "created_at": db.now(),
-            })
-            for person in cfg.people:
-                db.insert(conn, "employee", {
-                    "tenant_id": cfg.tenant_id, "id": person.id, "name": person.name, "email": person.email,
-                    "manager_id": person.manager_id, "entity": person.entity,
-                    "employment_type": person.employment_type, "segment_keys": person.segment_keys,
-                    "roles": person.roles, "timezone": person.timezone, "start_date": person.start_date,
-                    "end_date": person.end_date, "active": int(person.active),
-                })
-            policy.load_corpus(conn, cfg)
-
-            results, reached = [], set()
-            for case in cfg.golden_cases:
-                outcome = kernel.run(conn, cfg, message=case.message, requester_id=case.requester,
-                                     attachment=case.attachment, on=as_of)
-                reached.add(outcome.rule_id)
-                results.append({
-                    "id": case.id, "message": case.message, "requester": case.requester,
-                    "expected": f"{case.expect_rule}/{case.expect_mode}",
-                    "got": f"{outcome.rule_id}/{outcome.mode}",
-                    "pass": outcome.rule_id == case.expect_rule and outcome.mode == case.expect_mode,
-                    "verified": outcome.verify_passed, "note": case.note,
-                    "cited": [f"{c.doc_id} v{c.version} s{c.section_id}" for c in outcome.citations],
-                })
-        passed = sum(1 for r in results if r["pass"])
+        results = _run_golden(cfg, as_of)
+        reached = {r["rule_id"] for r in results}
         return {
             "tenant": cfg.tenant_id, "on": (as_of or date.today()).isoformat(),
-            "passed": passed, "total": len(results), "results": results,
+            "passed": sum(1 for r in results if r["pass"]), "total": len(results), "results": results,
             "rules_reached": sorted(reached),
             "rules_never_reached": sorted({r.id for r in cfg.rules} - reached),
         }
 
     _serve_dashboard(app)
     return app
+
+
+def _run_golden(cfg: ResolvedConfig, as_of: date | None) -> list[dict[str, Any]]:
+    """Run a company's own example requests in a throwaway database."""
+    with closing(db.open_db(":memory:")) as conn:
+        db.insert(conn, "tenant", {
+            "id": cfg.tenant_id, "name": cfg.manifest.name, "pack_path": "packs",
+            "config_hash": cfg.config_hash, "active": 1, "created_at": db.now(),
+        })
+        for person in cfg.people:
+            db.insert(conn, "employee", {
+                "tenant_id": cfg.tenant_id, "id": person.id, "name": person.name, "email": person.email,
+                "manager_id": person.manager_id, "entity": person.entity,
+                "employment_type": person.employment_type, "segment_keys": person.segment_keys,
+                "roles": person.roles, "timezone": person.timezone, "start_date": person.start_date,
+                "end_date": person.end_date, "active": int(person.active),
+            })
+        policy.load_corpus(conn, cfg)
+
+        results = []
+        for case in cfg.golden_cases:
+            outcome = kernel.run(conn, cfg, message=case.message, requester_id=case.requester,
+                                 attachment=case.attachment, on=as_of)
+            results.append({
+                "id": case.id, "message": case.message, "requester": case.requester,
+                "rule_id": outcome.rule_id, "mode": outcome.mode,
+                "expected": f"{case.expect_rule}/{case.expect_mode}",
+                "got": f"{outcome.rule_id}/{outcome.mode}",
+                "pass": outcome.rule_id == case.expect_rule and outcome.mode == case.expect_mode,
+                "verified": outcome.verify_passed, "note": case.note,
+                "cited": [f"{c.doc_id} v{c.version} s{c.section_id}" for c in outcome.citations],
+            })
+    return results
 
 
 _NOT_BUILT = """<!doctype html><meta charset="utf-8"><title>HR Operations Agent</title>

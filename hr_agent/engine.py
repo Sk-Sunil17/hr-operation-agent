@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .packs.loader import rules_for_segment
-from .packs.models import ResolvedConfig, Rule
+from .packs.models import ResolvedConfig, Rule, restriction
 
 
 @dataclass(frozen=True)
@@ -74,6 +74,13 @@ def evaluate(cfg: ResolvedConfig, facts: dict[str, Any], *, segment_ids: list[st
     """
     segments = segment_ids or []
     rules = rules_for_segment(cfg, segments) if segments else cfg.rules
+    if cfg.rule_settings:
+        rules = [
+            r.model_copy(update={"mode": cfg.rule_settings[r.id]})
+            if r.id in cfg.rule_settings and restriction(cfg.rule_settings[r.id]) > restriction(r.mode)
+            else r
+            for r in rules
+        ]
 
     considered: list[str] = []
     for rule in rules:

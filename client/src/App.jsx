@@ -8,23 +8,29 @@ import ItemsView from './views/Items.jsx';
 import InterviewsView from './views/Interviews.jsx';
 import RulesView from './views/Rules.jsx';
 import PoliciesView from './views/Policies.jsx';
-import ToolsView from './views/Tools.jsx';
-import AuditView from './views/Audit.jsx';
-import MetricsView from './views/Metrics.jsx';
-import PackView from './views/Pack.jsx';
+import InsightsView from './views/Insights.jsx';
 
-const TABS = [
-  ['ask', 'Ask', AskView],
-  ['queue', 'Approvals', QueueView],
-  ['items', 'Work items', ItemsView],
-  ['interviews', 'Interviews', InterviewsView],
-  ['rules', 'Rules', RulesView],
-  ['policies', 'Policies', PoliciesView],
-  ['tools', 'Systems', ToolsView],
-  ['audit', 'Audit', AuditView],
-  ['metrics', 'Measurement', MetricsView],
-  ['pack', 'Configuration', PackView],
-];
+// HR sees the whole operation; everyone else sees their own requests, plus
+// approvals when something is waiting for them (a manager, say).
+function tabsFor(me, waiting) {
+  if (me?.is_hr) {
+    return [
+      ['ask', 'Ask', AskView],
+      ['queue', 'Approvals', QueueView],
+      ['items', 'Requests', ItemsView],
+      ['interviews', 'Interviews', InterviewsView],
+      ['policies', 'Policies', PoliciesView],
+      ['rules', 'Rules', RulesView],
+      ['insights', 'Insights', InsightsView],
+    ];
+  }
+  return [
+    ['ask', 'Ask', AskView],
+    ['items', 'My requests', ItemsView],
+    ...(waiting > 0 ? [['queue', 'Approvals', QueueView]] : []),
+    ['policies', 'Policies', PoliciesView],
+  ];
+}
 
 export default function App() {
   const [health, setHealth] = useState(null);
@@ -123,7 +129,9 @@ export default function App() {
 
   const company = tenants.find((t) => t.id === tenant);
   const me = people.find((p) => p.id === actor);
-  const View = (TABS.find(([id]) => id === tab) || TABS[0])[2];
+  const tabs = tabsFor(me, queueCount);
+  const current = tabs.find(([id]) => id === tab) || tabs[0];
+  const View = current[2];
   const showLogin = authOn && !signedIn;
 
   return (
@@ -133,18 +141,11 @@ export default function App() {
           <div className="brand">
             <span className="brand-name">HR Operations Agent</span>
             <span className="brand-sub">
-              {showLogin ? 'sign in to continue' : company ? `${company.name} · ${company.config_hash}` : 'loading…'}
+              {showLogin ? 'sign in to continue' : company ? company.name : 'loading…'}
             </span>
           </div>
           <div className="topbar-right">
-            {health && (
-              <>
-                <span className="pill">{health.guardrails.model_provider}</span>
-                <span className={`pill ${health.guardrails.redaction ? 'pill-gold' : 'pill-warn'}`}>
-                  {health.guardrails.redaction ? 'redaction on' : 'REDACTION OFF'}
-                </span>
-              </>
-            )}
+            {health && !health.guardrails.redaction && <span className="pill pill-warn">Redaction off</span>}
             {authOn ? (
               signedIn &&
               me && (
@@ -187,13 +188,17 @@ export default function App() {
         </div>
         {!showLogin && (
           <nav className="mainnav" aria-label="Screens">
-            {TABS.map(([id, label]) => (
+            {tabs.map(([id, label]) => (
               <button
                 key={id}
                 type="button"
                 className="mainnav-item"
-                aria-current={tab === id ? 'page' : undefined}
-                onClick={() => setTab(id)}
+                aria-current={current[0] === id ? 'page' : undefined}
+                onClick={() => {
+                  setTab(id);
+                  setError(null);
+                  setNotice(null);
+                }}
               >
                 {label}
                 {id === 'queue' && queueCount > 0 && <span className="mainnav-count">{queueCount}</span>}
@@ -206,10 +211,8 @@ export default function App() {
       {health?.demo?.public && !authOn && (
         <div className="banner" role="status">
           <span>
-            <strong>Public demo.</strong> Three fictional companies, invented people, invented
-            policies. Anyone with this link can act as anyone in the directory and approve things —
-            that is the point of the demo, and it is why no real data is here. Without a persistent
-            disk, state resets when the server restarts.
+            <strong>Public demo.</strong> Fictional companies, people and policies. Switch who you are
+            acting as in the top right to see each role.
           </span>
         </div>
       )}
@@ -245,7 +248,7 @@ export default function App() {
           // Remount when the screen or the company changes, and ONLY then. The
           // version counter refreshes the queue badge above; putting it in this
           // key would remount the view on every action and discard its result.
-          key={`${tab}-${tenant}`}
+          key={`${current[0]}-${tenant}`}
           tenant={tenant}
           company={company}
           actor={actor}
@@ -281,12 +284,8 @@ export default function App() {
       )}
 
       <p className="footer">
-        {authOn
-          ? 'Signed-in build. What you can see and decide comes from the roles your company directory gives you. '
-          : health?.demo?.public
-            ? 'Public demo build. Anyone can act as anyone from the company directory, and only fictional data is loaded. '
-            : 'Demo build. Anyone can act as anyone from the company directory, which is why the agent refuses to listen on anything but localhost. '}
-        No model is called: replies are templates wrapped around policy text quoted verbatim.
+        Answers quote your own policies word for word. Nothing is changed or sent without your rules
+        allowing it, and every step is on a tamper-evident audit trail.
       </p>
     </div>
   );

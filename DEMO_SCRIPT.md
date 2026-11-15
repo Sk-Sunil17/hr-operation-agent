@@ -81,8 +81,7 @@ say *"I'd have to check that one"*. Nobody expects you to know everything.
 enquiries, policy lookup, HR administration (changes to records), document and
 form intake, onboarding readiness, offboarding checklists, and interview
 scheduling. Every one of those is in the demo below except offboarding and the
-nightly checks, which are on the **Work items** and **Configuration** screens if
-anybody asks.
+nightly checks, which show up on the **Requests** screen if anybody asks.
 
 ---
 
@@ -100,8 +99,8 @@ read out — say them in your own words.
 > "This is an HR assistant. I'll show you something simple first, then I'll show
 > you the thing that actually matters."
 
-**Do:** On the **Ask** tab, click the first test case in the left panel —
-*"How many days of annual leave do I get in a year?"* — then click **Run it**.
+**Do:** On the **Ask** tab, click the first example on the left —
+*"How many days of annual leave do I get in a year?"* — then click **Send**.
 
 **Point at the dark bar across the top** (the row of seven numbered circles).
 
@@ -137,7 +136,7 @@ read out — say them in your own words.
 My manager keeps making comments about my accent in front of the team and I dread meetings now.
 ```
 
-Click **Run it**.
+Click **Send**.
 
 **Pause for a second before you say anything. Let them read it.**
 
@@ -177,7 +176,7 @@ Click **Run it**.
 I have moved. Please update my home address to 12 Oakfield Road, Bristol BS6 7JQ.
 ```
 
-Click **Run it**.
+Click **Send**.
 
 **Say the new address out loud as you type it.** It matters: the agent will not
 invent a value. If you only say "I have moved", it identifies the field and the
@@ -243,7 +242,7 @@ while you are still the HR partner.
 Please arrange a technical interview with Astrid Lindqvist (astrid.l@example.test) for the Head of Finance role, with Priya and Sam.
 ```
 
-Click **Run it**.
+Click **Send**.
 
 **Point at the reply, and walk down it slowly. There are four things to notice.**
 
@@ -308,9 +307,9 @@ audience recognises their own job in.
 > "Last one on the doing side. Everything so far was somebody typing a sentence.
 > Most of HR's week is paperwork arriving."
 
-**Do:** On the **Ask** tab, in this company's test cases on the left, click
-**"Here is my completed new starter form."** — the one tagged *with a document*.
-It fills in both the message and the form itself. Then click **Run it**.
+**Do:** On the **Ask** tab, click the **Documents** tile (or the example
+**"Here is my completed new starter form."** on the left, tagged *Document*).
+It fills in both the message and the form itself. Then click **Send**.
 
 **Point at the read-back in the reply.**
 
@@ -326,7 +325,7 @@ It fills in both the message and the form itself. Then click **Run it**.
 > they can open the document."
 
 **Do:** Now delete one line from the form — the **Emergency contact** line — and
-click **Run it** again.
+click **Send** again.
 
 > "Same form, one field missing. It names exactly what is missing, files nothing,
 > and chases nobody. A person decides whether to ask for it and from whom."
@@ -358,7 +357,7 @@ This is your commercial argument. Slow down here.
 14-person sample. "The directory in this demo is a sample — in a real
 deployment the people come from the customer's HR system through an adapter,
 not from a file in our repo." The three legal entities and the works-council
-population are real in the config, and the Rules tab shows them.*
+population are real in the config.*
 
 **Do:** Go to the **Ask** tab, and run the *same* leave question:
 
@@ -378,19 +377,32 @@ How many days of annual leave do I get in a year?
 `packs/tenants/meridian_group/rules.yaml` — twenty lines, comments included.
 Showing it helps rather than hurts.)*
 
-**Do:** Click the **Rules** tab.
+**Do:** Switch **Company** back to **Acme Labs**, make sure you are acting as
+**Hana Suzuki — HR Partner**, and click the **Rules** tab.
 
-**Point at the gold highlighted row (E1) and the "set by: tenant" column.**
+> "And this is where HR runs it. Every kind of request, in plain English, and
+> how the agent handles it."
 
-> "Every rule is listed, in plain English, with who set it. Gold means this
-> company changed it. And here's the guarantee that makes it safe —"
+**Do:** On **Routine policy questions**, click **Change** and pick
+**Draft for approval**. Don't save yet.
 
-**Point at the left panel text.**
+**Point at the yellow box.**
 
-> "— a company can only make it *stricter*. If a customer edits their config to
-> let the assistant answer something it shouldn't, the software refuses to start.
-> Not a warning. It won't boot. So no customer setting, and no instruction
-> smuggled into a document, can unlock something that needs a human."
+> "Before anything changes, it shows you exactly which requests would be handled
+> differently — run against this company's own sample requests."
+
+**Do:** Type a reason ("Reviewing leave answers this month") and click
+**Save change**. Go to **Ask** and send the leave question again: it now waits for
+approval.
+
+> "No ticket to IT, no restart. And here's the guarantee that makes it safe —
+> HR can only make things *stricter* than the company rulebook. The looser
+> options are greyed out. And if Hana tries to relax the rule she tightened, it
+> refuses: a second HR person has to do that. Every change, with its reason, is
+> on the audit trail."
+
+*(To put it back, switch **Acting as** to another HR person and change it back
+to **Answer automatically** — or restart with `hrctl up --reset`.)*
 
 **The line to land:**
 
@@ -402,7 +414,7 @@ Showing it helps rather than hurts.)*
 
 ### MOMENT 5 — Close *(30 seconds)*
 
-**Do:** Click the **Audit** tab.
+**Do:** Click the **Insights** tab and point at **Trust**.
 
 > "Everything it does is written to a tamper-evident trail. Each row is
 > cryptographically linked to the one before it, so if anyone edits history, it
@@ -456,7 +468,7 @@ nothing to hallucinate.)*
 > actually ask for."
 
 **"How much time does it save?"**
-> Go to the **Measurement** tab and point at the yellow caveat box.
+> Go to the **Insights** tab, point at **Time**, and open **How these numbers are counted**.
 > "I'll be honest about this one. It only counts time saved on things it handled
 > entirely alone. Anything a human touched is counted as a *cost*, not a saving.
 > And for the second company it reports no saving at all, because they haven't
@@ -516,9 +528,9 @@ correctly, not a bug — say so out loud and move on. The fix depends on who ask
 **It says "this is assigned to hr_partner, which this account does not hold".**
 Switch to **Hana Suzuki**, or **Joel Asante** if Hana was the one who asked.
 
-**You clicked Run it and nothing happened.**
+**You clicked Send and nothing happened.**
 The text box was empty, or you clicked before typing. Click in the box, check
-your text is there, click Run it again.
+your text is there, click Send again.
 
 **The numbers look wrong or the queue is empty.**
 In a third terminal:
@@ -565,14 +577,14 @@ Tape this to your monitor.
 BEFORE:  python3 -m hr_agent.cli up --reset  ·  open 127.0.0.1:4000
          SET "Acting as" = Maya Iyer
 
-1  ASK   "How many days of annual leave do I get in a year?"  → Run it
+1  ASK   "How many days of annual leave do I get in a year?"  → Send
          → it quotes the policy, 12 checks pass
 
-2  ASK   "My manager keeps making comments about my accent..."  → Run it
+2  ASK   "My manager keeps making comments about my accent..."  → Send
          → IT REFUSES TO ANSWER. This is the product. Pause here.
 
 3  ASK   "I have moved. Please update my home address to
-          12 Oakfield Road, Bristol BS6 7JQ."              → Run it
+          12 Oakfield Road, Bristol BS6 7JQ."              → Send
          → prepared, not done  (SAY THE ADDRESS — it won't invent one)
          → SWITCH "Acting as" to Hana Suzuki  (Maya can't approve her own)
          → Approvals tab  →  click the A1 item  →  Approve and send
@@ -584,16 +596,16 @@ BEFORE:  python3 -m hr_agent.cli up --reset  ·  open 127.0.0.1:4000
          → SWITCH "Acting as" to Joel Asante  (Hana can't approve her own either)
          → Approvals → approve → INTERVIEWS tab → it exists now
 
-3c ASK   click test case "Here is my completed new starter form."
-          (tagged WITH A DOCUMENT — fills the form in for you)   → Run it
+3c ASK   click the Documents tile, "Here is my completed new starter form."
+          (fills the form in for you)   → Send
          → reads every field back; BANK DETAILS = "filled in, not repeated here"
-         → delete the Emergency contact line, Run it again → names what's missing
+         → delete the Emergency contact line, Send again → names what's missing
 
 4  TOP RIGHT: switch company to Meridian  →  ask question 1 again
          → same rule, different outcome, zero code change
-         →  Rules tab  →  gold row, "set by: tenant"
+         →  back to Acme, Rules tab  →  change Routine policy questions, see the impact, save
 
-5  AUDIT tab  →  tamper-evident trail  →  close
+5  INSIGHTS tab  →  Trust: tamper-evident trail  →  close
 
 CLOSE:  quotes instead of inventing · refuses when it should · does the
         back-office work · every company configures it, and can only tighten it

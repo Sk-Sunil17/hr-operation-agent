@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { api } from '../api.js';
 import { RecordList, useBusy, useLoad } from '../shared.jsx';
-import { modeOf, when } from '../format.js';
+import { ruleTitle, when } from '../format.js';
 
 export default function QueueView({ tenant, actor, me, onError, onNotice, onChanged }) {
   const [selected, setSelected] = useState(null);
@@ -50,12 +50,9 @@ export default function QueueView({ tenant, actor, me, onError, onNotice, onChan
 
   const rows = items.map((i) => ({
     id: i.id,
-    title: i.rule_reason?.slice(0, 70) || i.rule_id,
-    right: i.rule_id,
-    status: i.mine
-      ? { label: `Yours — ${i.role_label}`, tone: 'wait' }
-      : { label: `${i.role_label}`, tone: 'neutral' },
-    meta: `${i.intent}/${i.sensitivity} · ${when(i.asked_at)}`,
+    title: ruleTitle(i.rule_id),
+    status: i.mine ? { label: 'For you', tone: 'wait' } : { label: i.role_label, tone: 'neutral' },
+    meta: `${i.requester_name} · ${when(i.asked_at)}`,
   }));
 
   return (
@@ -67,23 +64,9 @@ export default function QueueView({ tenant, actor, me, onError, onNotice, onChan
             <span className={`count ${queue?.mine ? 'count-wait' : ''}`}>{items.length}</span>
           </div>
           <p className="hint" style={{ marginTop: 0 }}>
-            {loading
-              ? 'Loading…'
-              : `${queue?.mine || 0} of ${items.length} assigned to ${me?.name || actor}. Other roles' work is listed but their drafts are not shown.`}
+            {loading ? 'Loading…' : `${queue?.mine || 0} waiting for you. Nothing here has been sent or changed yet.`}
           </p>
           <RecordList rows={rows} selectedId={open?.id} onSelect={setSelected} empty="Nothing is waiting." />
-        </section>
-        <section className="card">
-          <h2>Why a person is here</h2>
-          <p className="hint" style={{ marginTop: 0 }}>
-            Nothing in this queue has touched a real system. Approving commits every prepared action
-            exactly once. Sending it back cancels them. Taking it over stops the agent on that case
-            for good.
-          </p>
-          <p className="hint">
-            The citation is re-checked at the moment of approval: a draft written against a policy
-            that has since changed is blocked, not sent.
-          </p>
         </section>
       </aside>
 
@@ -93,12 +76,11 @@ export default function QueueView({ tenant, actor, me, onError, onNotice, onChan
             <article className="detail">
               <header className="detail-head">
                 <div className="detail-title">
-                  <h1>{open.rule_id} · needs you</h1>
-                  <p className="detail-sub">{open.rule_reason}</p>
-                  <p className="detail-meta">
-                    asked by {open.requester_name} · {open.intent}/{open.sensitivity} ·{' '}
-                    <span className={`mode mode-${open.mode || 'prepare'}`}>{modeOf('prepare').short}</span>
+                  <p className="eyebrow">
+                    From {open.requester_name} · {when(open.asked_at)}
                   </p>
+                  <h1>{ruleTitle(open.rule_id)}</h1>
+                  <p className="detail-sub">{open.rule_reason}</p>
                 </div>
               </header>
 

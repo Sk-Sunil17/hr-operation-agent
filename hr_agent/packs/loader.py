@@ -202,7 +202,11 @@ def config_hash(resolved: ResolvedConfig) -> str:
     Stamped onto every work item and decision, so a decision can always be traced
     back to the exact configuration that produced it.
     """
-    payload = resolved.model_dump(mode="json", exclude={"provenance", "config_hash"})
+    exclude = {"provenance", "config_hash"}
+    if not resolved.rule_settings:
+        # A company with no dashboard changes keeps the fingerprint its pack alone gives.
+        exclude.add("rule_settings")
+    payload = resolved.model_dump(mode="json", exclude=exclude)
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return "cfg_" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:24]
 

@@ -259,6 +259,17 @@ def test_an_action_that_fails_leaves_the_approval_open(prepared, monkeypatch):
     assert result.committed
 
 
+def test_a_second_address_change_is_still_prepared_for_approval(prepared):
+    """The preview quotes the address already on record. That is the record the
+    rule allowed this request to change, not an identifier leaking in."""
+    conn, cfg, outcome = prepared
+    approvals.decide(conn, cfg, approval_id=outcome.approval_id, actor_id="emp_021",
+                     outcome="approved", note="checked", on=TODAY)
+    again = kernel.run(conn, cfg, message="I moved again. Please change my home address to 3 Mill Lane, York.",
+                       requester_id="emp_001", on=TODAY)
+    assert (again.rule_id, again.mode, again.verify_passed) == ("A1", "prepare", True)
+
+
 def test_a_plan_that_fails_to_act_can_be_committed_later(prepared, monkeypatch):
     conn, cfg, outcome = prepared
     registry = tools.Registry(conn, cfg)
